@@ -39,3 +39,11 @@ make install
 # Credits
 
 This Extension is inspired by [Glava](https://github.com/jarcode-foss/glava)
+
+## Acknowledgements / Credits
+
+This project is a patched version of the original [Sound Visualizer](https://gitlab.com/raihan2000/visualizer) created by [raihan2000]. 
+
+All credits for the original base source code go to the original author. This fork was created specifically to update the code and make it fully compatible with GNOME 50.
+
+Licensed under the [GPL-3.0 License](LICENSE) (same as the original project).

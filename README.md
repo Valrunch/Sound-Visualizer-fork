@@ -31,7 +31,7 @@ More Feature will be added in Future
 or
 
 ```
-git clone https://gitlab.com/raihan2000/visualizer.git
+git clone https://github.com/Valrunch/Sound-Visualizer-fork.git
 cd visualizer
 make install
 ```

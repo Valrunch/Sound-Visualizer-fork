@@ -1,2 +1,2 @@
 # Sound-Visualizer-fork
-Sound Visualizer patched for gnome 50 
+Sound Visualizer patched for GNOME 50

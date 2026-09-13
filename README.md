@@ -1,49 +1,47 @@
 # Sound Visualizer patched for GNOME 50
 
 # Sound Visualizer
-A Sound Visualizer for Gnome Shell based on Gstreamer specially for Wayland
+A Sound Visualizer for GNOME Shell based on GStreamer, specifically for Wayland.
 
 ![demo](assets/visualization.gif)
 
-For Desktop Widgets I'm Using [Circular Widgets](https://extensions.gnome.org/extension/5530/circular-widgets/) Extension.
+For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.org/extension/5530/circular-widgets/) extension.
 
 # Features
 
-- Drag and Drop Supports
-- Change Audio source from Menu (To change right/left click on Visualizer)
-- Change Visualizer size
-- Increase or Decrease Bands
+- Drag and drop support
+- Change audio source from the menu (Right/left click on the visualizer to change)
+- Change visualizer size
+- Increase or decrease bands
 - Choose how many bands will appear on display
-- Now you can Flip Visualizer
-- Keep the visualiser Always on Top
-- Change the Visualiser Colour
-- Change the Visualiser Style from Bar to Solid Colour
-- Support Gnome Shell v45, v46, v47
+- Flip the visualizer
+- Keep the visualizer always on top
+- Change the visualizer color
+- Change the visualizer style from bar to solid color
+- Supports GNOME Shell v45, v46, v47, and v50
 
-More Feature will be added in Future
+More features will be added in the future.
 
 # Installation
 
-1. Download zip file : https://gitlab.com/raihan2000/visualizer/-/archive/main/visualizer-main.zip
-2. Extract to visualizer-main
-4. make install
+**Option 1: From ZIP**
+1. Download the zip file: https://github.com/Valrunch/Sound-Visualizer-fork/archive/refs/heads/main.zip
+2. Extract the zip file and open the extracted folder in your terminal.
+3. Run `make install`
 
-or
-
-```
-git clone https://github.com/Valrunch/Sound-Visualizer-fork.git
-cd visualizer
+**Option 2: From Git**
+```bash
+git clone [https://github.com/Valrunch/Sound-Visualizer-fork.git](https://github.com/Valrunch/Sound-Visualizer-fork.git)
+cd Sound-Visualizer-fork
 make install
 ```
 
-# Credits
-
-This Extension is inspired by [Glava](https://github.com/jarcode-foss/glava)
-
-## Acknowledgements / Credits
+# Acknowledgements & Credits
 
 This project is a patched version of the original [Sound Visualizer](https://gitlab.com/raihan2000/visualizer) created by [raihan2000]. 
 
 All credits for the original base source code go to the original author. This fork was created specifically to update the code and make it fully compatible with GNOME 50.
+
+This extension is also inspired by [Glava](https://github.com/jarcode-foss/glava).
 
 Licensed under the [GPL-3.0 License](LICENSE) (same as the original project).

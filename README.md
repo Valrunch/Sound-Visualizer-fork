@@ -1,5 +1,8 @@
 # Sound Visualizer patched for GNOME 50
 
+> [!CAUTION]
+> **Work In Progress:** This fork is currently under development. It is not yet stable or finished. Expect bugs and frequent updates!
+
 # Sound Visualizer
 A Sound Visualizer for GNOME Shell based on GStreamer, specifically for Wayland.
 

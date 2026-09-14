@@ -34,7 +34,8 @@ More features will be added in the future.
 
 **Option 2: From Git**
 ```bash
-git clone [https://github.com/Valrunch/Sound-Visualizer-fork.git](https://github.com/Valrunch/Sound-Visualizer-fork.git)
+git clone
+https://github.com/Valrunch/Sound-Visualizer-fork.git
 cd Sound-Visualizer-fork
 make install
 ```

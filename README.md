@@ -1,4 +1,4 @@
-# Sound Visualizer patched for GNOME 50
+# Sound Visualizer ported to recent GNOME versions
 
 > [!CAUTION]
 > **Work In Progress:** This fork is currently under development. It is not yet stable or finished. Expect bugs and frequent updates!

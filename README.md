@@ -44,9 +44,11 @@ make install
 
 # Acknowledgements & Credits
 
-**This project is a patched version of the original [Sound Visualizer](https://gitlab.com/raihan2000/visualizer) created by [raihan2000].**
+**This project is a patched version of the original [Sound Visualizer](https://gitlab.com/raihan2000/visualizer) created by "raihan2000".**
 
-All credits for the original base source code go to the original author. This fork was created specifically to update the code and make it fully compatible with GNOME 50.
+**Full credit for the original source code goes to the original author.**
+
+This fork was created to update the codebase, add a few new features, ensure full compatibility with recent GNOME releases, and just to enjoy working on it.
 
 This extension is also inspired by [Glava](https://github.com/jarcode-foss/glava).
 

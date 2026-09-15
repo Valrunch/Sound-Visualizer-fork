@@ -123,7 +123,7 @@ class PrefsWindow {
         });
 
         const projectTitleLabel = new Gtk.Label({
-            label: _('Sound Visualizer'),
+            label: _('Sound Visualizer fork'),
             vexpand: true,
             valign: Gtk.Align.FILL,
         });
@@ -144,16 +144,16 @@ class PrefsWindow {
         const infoGroup = new Adw.PreferencesGroup();
 
         const projectVersionRow = new Adw.ActionRow({
-            title: _('Sound Visualizer Version'),
+            title: _('Sound Visualizer fork Version'),
         });
         projectVersionRow.add_suffix(new Gtk.Label({
             label: this._metadata.version.toString(),
         }));
         infoGroup.add(projectVersionRow);
-        const gitlabRow = this._createLinkRow(_('Sound Visualizer Github'), this._metadata.url);
+        const gitlabRow = this._createLinkRow(_('Sound Visualizer fork Github'), this._metadata.url);
         infoGroup.add(gitlabRow);
 
-        const donateRow = this._createLinkRow(_('Donate via Buy Me a Coffee'), BMC_LINK);
+        const donateRow = this._createLinkRow(_('Donate to raihan1999v via Buy Me a Coffee'), BMC_LINK);
         infoGroup.add(donateRow);
         groupAbout.add(infoGroup);
     }

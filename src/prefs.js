@@ -150,7 +150,7 @@ class PrefsWindow {
             label: this._metadata.version.toString(),
         }));
         infoGroup.add(projectVersionRow);
-        const gitlabRow = this._createLinkRow(_('Sound Visualizer GitLab'), this._metadata.url);
+        const gitlabRow = this._createLinkRow(_('Sound Visualizer Github'), this._metadata.url);
         infoGroup.add(gitlabRow);
 
         const donateRow = this._createLinkRow(_('Donate via Buy Me a Coffee'), BMC_LINK);

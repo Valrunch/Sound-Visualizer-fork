@@ -66,9 +66,7 @@ class PrefsWindow {
       title: title,
     });
     expand_row.connect("notify::enable-expansion", (widget) => {
-      let settingArray = this._settings.get_boolean(key);
-      settingArray = widget.enable_expansion;
-      this._settings.set_value(key, new GLib.Variant('b', settingArray));
+      this._settings.set_value(key, new GLib.Variant('b', widget.enable_expansion));
     });
     row.add_suffix(key1);
     expand_row.add_row(row);
@@ -152,7 +150,7 @@ class PrefsWindow {
             label: this._metadata.version.toString(),
         }));
         infoGroup.add(projectVersionRow);
-        const gitlabRow = this._createLinkRow(_('Sound Visualizer github'), this._metadata.url);
+        const gitlabRow = this._createLinkRow(_('Sound Visualizer GitLab'), this._metadata.url);
         infoGroup.add(gitlabRow);
 
         const donateRow = this._createLinkRow(_('Donate via Buy Me a Coffee'), BMC_LINK);
@@ -163,16 +161,13 @@ class PrefsWindow {
 }
 
 function getSwitch(key, settings) {
-    let button = new Gtk.Switch({ active: key, valign: Gtk.Align.CENTER });
+    let button = new Gtk.Switch({ valign: Gtk.Align.CENTER });
     settings.bind(key, button, 'active', Gio.SettingsBindFlags.DEFAULT);
     return button
 }
 
 function getSpinButton(is_double, key, min, max, step, settings) {
-    let v = 0;
-    (is_double) ? v = settings.get_double(key) : v = settings.get_int(key);
     let spin = Gtk.SpinButton.new_with_range(min, max, step);
-    spin.set_value(v);
     settings.bind(key, spin, 'value', Gio.SettingsBindFlags.DEFAULT);
     return spin;
 }

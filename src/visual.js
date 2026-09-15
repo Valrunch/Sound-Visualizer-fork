@@ -43,9 +43,10 @@ export const Visualizer = GObject.registerClass(
       this._draggable.connect('drag-end', this._onDragEnd.bind(this));
       this.connect('notify::hover', () => this._onHover());
       this.actorInit();
+      this.getSpectBands();
+      this._cacheDrawSettings();
       this._actor.connect('repaint', (area) => this.drawStuff(area));
       this.setupGst();
-      this._update();
       this.setPosition();
       this._setParent();
     }
@@ -76,40 +77,47 @@ export const Visualizer = GObject.registerClass(
       let struct = msg.get_structure();
       let [magbool, magnitudes] = struct.get_list("magnitude");
       if (!magbool) {
-        console.log('No magnitudes');
-      } else {
-        for (let i = 0; i < this._spectBands; ++i) {
-//            console.log(magnitudes.get_nth(i));
-            for (let j=i; j < this._spectBands * 2 / 3; ++j){
-                if(i == this._spectBands * 2/3){
-                    break;
-                } else {
-                    this._freq[j] = Math.abs(magnitudes.get_nth(j));
-                }
-            }
-        }
-        if (this._freq.length > 1){
-            this._createdup(this._freq,this._dupFreq, this._spectBands * 4/3);
-        }
+        return;
       }
+      let limit = Math.floor(this._spectBands * 2 / 3);
+      for (let j = 0; j < limit; j++) {
+        this._freq[j] = Math.abs(magnitudes.get_nth(j));
+      }
+      if (this._freq.length > 1){
+          this._createdup(this._freq,this._dupFreq, Math.floor(this._spectBands * 4/3));
+      }
+      this._actor.queue_repaint();
     }
 
     actorInit() {
-      this._spectBands = this._settings.get_int('total-spects-band');
       this._spectHeight = this._settings.get_int('visualizer-height');
       this._spectWidth = this._settings.get_int('visualizer-width');
       this._actor.height = this._spectHeight;
       this._actor.width = this._spectWidth;
     }
 
+    _applyBandSettings() {
+      this.getSpectBands();
+      this._spectrum.set_property("bands", this._spectBands);
+      this._resetFreq();
+      this._actor.queue_repaint();
+    }
+
+    _cacheDrawSettings() {
+      this._lineWidth = this._settings.get_int('spects-line-width');
+      this._flip = this._settings.get_boolean('flip-visualizer');
+      this._fill = this._settings.get_boolean('fill-visualizer');
+      this._color = this._parseColor(this._settings.get_string('visualizer-color'));
+    }
+
     drawStuff(area) {
-      let values = this.getSpectBands()*4/3;
+      let values = Math.floor(this._spectBands * 4/3);
       let [width, height] = area.get_surface_size();
       let cr = area.get_context();
-      let lineW = this._settings.get_int('spects-line-width');
-      let flip = this._settings.get_boolean('flip-visualizer');
-      let color = this._parseColor(this._settings.get_string('visualizer-color'));
-      let fill = this._settings.get_boolean('fill-visualizer'); // fill the allocated drawing area with color
+      let lineW = this._lineWidth;
+      let flip = this._flip;
+      let color = this._color;
+      let fill = this._fill;
 
       if(!flip) {
         cr.moveTo(0, height);
@@ -120,7 +128,8 @@ export const Visualizer = GObject.registerClass(
 
       for (let i = 0; i < values; i++) {
         let startX = fill? i * width / values : lineW / 2 + i * width / values;
-        let endY = height * this._dupFreq[i] / 80;
+        let magnitude = this._dupFreq[i] ?? 0;
+        let endY = height * magnitude / 80;
 
         if (!flip) {
             if(!fill) {
@@ -160,18 +169,6 @@ export const Visualizer = GObject.registerClass(
         }
     }
 
-    _update() {
-      if(this._mainTimeoutId) {
-        GLib.Source.remove(this._mainTimeoutId);
-        this._mainTimeoutId = null;
-      }
-      this._mainTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, (1*10), () => {
-        this._actor.queue_repaint();
-        return GLib.SOURCE_CONTINUE;
-      });
-      this._sources.push(this._mainTimeoutId);
-    }
-
     _parseColor(string)
     {
         let ok, color;
@@ -182,7 +179,7 @@ export const Visualizer = GObject.registerClass(
         }
 
         if (!ok) {
-            return [0, 0, 0, 1];
+            return { red: 0, green: 0, blue: 0, alpha: 1 };
         }
         return {
             red: color.red/255,
@@ -194,7 +191,10 @@ export const Visualizer = GObject.registerClass(
 
     getSpectBands() {
       let override = this._settings.get_boolean('spect-over-ride-bool');
-      return override ? this._spectBands = this._settings.get_int('spect-over-ride') : this._spectBands;
+      this._spectBands = override
+        ? this._settings.get_int('spect-over-ride')
+        : this._settings.get_int('total-spects-band');
+      return this._spectBands;
     }
 
     _getMetaRectForCoords(x, y) {
@@ -429,6 +429,12 @@ export const Visualizer = GObject.registerClass(
 
     destroy() {
       this._removeSources(this._sources);
+      if (this._settingsHandlerIds) {
+        for (let id of this._settingsHandlerIds) {
+          this._settings.disconnect(id);
+        }
+        this._settingsHandlerIds = null;
+      }
       this._pipeline.get_bus().remove_signal_watch();
       this._pipeline.set_state(Gst.State.NULL);
       const parent = this.get_parent();
@@ -440,38 +446,37 @@ export const Visualizer = GObject.registerClass(
     }
 
     settingsChanged() {
-      this._settings.connect('changed::visualizer-location', () => this.setPosition());
-      this._settings.connect('changed::total-spects-band', () => {
-        this.actorInit();
-        this._spectrum.set_property("bands", this._spectBands);
-        this._actor.queue_repaint();
-        this._resetFreq();
-      });
-      this._settings.connect('changed::visualizer-height', () => {
-        this.actorInit();
-        this._actor.queue_repaint();
-      });
-      this._settings.connect('changed::visualizer-width', () => {
-        this.actorInit();
-        this._actor.queue_repaint();
-      });
-      this._settings.connect('changed::spect-over-ride', () => {
-        this.getSpectBands();
-        this.actorInit();
-        this._spectrum.set_property("bands", this._spectBands);
-        this._actor.queue_repaint();
-        this._resetFreq();
-      });
-      this._settings.connect('changed::spect-over-ride-bool', () => {
-        this.getSpectBands();
-        this.actorInit();
-        this._spectrum.set_property("bands", this._spectBands);
-        this._actor.queue_repaint();
-        this._resetFreq();
-      });
-      this._settings.connect('changed::spects-line-width', () => this._actor.queue_repaint());
-      this._settings.connect('changed::always-on-top', () => this._setParent());
-      this._settings.connect('changed::visualizer-color', () => this._actor.queue_repaint());
+      this._settingsHandlerIds = [
+        this._settings.connect('changed::visualizer-location', () => this.setPosition()),
+        this._settings.connect('changed::total-spects-band', () => this._applyBandSettings()),
+        this._settings.connect('changed::spect-over-ride', () => this._applyBandSettings()),
+        this._settings.connect('changed::spect-over-ride-bool', () => this._applyBandSettings()),
+        this._settings.connect('changed::visualizer-height', () => {
+          this.actorInit();
+          this._actor.queue_repaint();
+        }),
+        this._settings.connect('changed::visualizer-width', () => {
+          this.actorInit();
+          this._actor.queue_repaint();
+        }),
+        this._settings.connect('changed::spects-line-width', () => {
+          this._cacheDrawSettings();
+          this._actor.queue_repaint();
+        }),
+        this._settings.connect('changed::flip-visualizer', () => {
+          this._cacheDrawSettings();
+          this._actor.queue_repaint();
+        }),
+        this._settings.connect('changed::fill-visualizer', () => {
+          this._cacheDrawSettings();
+          this._actor.queue_repaint();
+        }),
+        this._settings.connect('changed::visualizer-color', () => {
+          this._cacheDrawSettings();
+          this._actor.queue_repaint();
+        }),
+        this._settings.connect('changed::always-on-top', () => this._setParent()),
+      ];
     }
 
     _removeSources(src) {

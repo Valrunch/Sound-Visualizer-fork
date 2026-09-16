@@ -37,11 +37,7 @@ export const Visualizer = GObject.registerClass(
       this._draggable = DND.makeDraggable(this);
       this._draggable._animateDragEnd = (eventTime) => {
         this._draggable._animationInProgress = true;
-        if (majorVersion >= 49) {
-          this._draggable._onAnimationComplete(eventTime);
-        } else {
-          this._draggable._onAnimationComplete(this._draggable._dragActor, eventTime);
-        }
+        this._draggable._onAnimationComplete(this._draggable._dragActor, eventTime);
       };
       this._draggable.connect('drag-begin', this._onDragBegin.bind(this));
       this._draggable.connect('drag-end', this._onDragEnd.bind(this));
@@ -88,7 +84,7 @@ export const Visualizer = GObject.registerClass(
         this._freq[j] = Math.abs(magnitudes.get_nth(j));
       }
       if (this._freq.length > 1){
-          this._createdup(this._freq,this._dupFreq, this._freq.length * 2);
+          this._createdup(this._freq,this._dupFreq, Math.floor(this._spectBands * 4/3));
       }
       this._actor.queue_repaint();
     }
@@ -115,7 +111,7 @@ export const Visualizer = GObject.registerClass(
     }
 
     drawStuff(area) {
-      let values = this._dupFreq.length;
+      let values = Math.floor(this._spectBands * 4/3);
       let [width, height] = area.get_surface_size();
       let cr = area.get_context();
       let lineW = this._lineWidth;
@@ -280,9 +276,15 @@ export const Visualizer = GObject.registerClass(
         this._dragMonitor = null;
       }
       this.set_position(this.deltaX, this.deltaY);
-      this._ignorePositionUpdate = true;
+      this.ignoreUpdatePosition = true;
       this._settings.set_value('visualizer-location', new GLib.Variant('(ii)', [this.deltaX, this.deltaY]));
-      this._ignorePositionUpdate = false;
+      this.ignoreUpdatePosition = false;
+    }
+
+    getDragActor() {}
+
+    getDragActorSource() {
+      return this;
     }
 
     async setDefaultSrc() {
@@ -302,9 +304,6 @@ export const Visualizer = GObject.registerClass(
         }
         this._defaultSrcId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
           this._control = Main.panel.statusArea.quickSettings._volumeInput._control;
-          if (!this._controlHandlerId) {
-            this._controlHandlerId = this._control.connect('default-sink-changed', () => this.setDefaultSrc());
-          }
           let stream = this._control.get_default_sink();
           (stream !== null) ? resolve(stream.get_name() + '.monitor'): reject(Error('failure'));
           return GLib.SOURCE_REMOVE;
@@ -435,10 +434,6 @@ export const Visualizer = GObject.registerClass(
           this._settings.disconnect(id);
         }
         this._settingsHandlerIds = null;
-      }
-      if (this._control && this._controlHandlerId) {
-        this._control.disconnect(this._controlHandlerId);
-        this._controlHandlerId = null;
       }
       this._pipeline.get_bus().remove_signal_watch();
       this._pipeline.set_state(Gst.State.NULL);

@@ -23,7 +23,6 @@ For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.o
 - Keep the visualizer always on top
 - Change the visualizer color
 - Change the visualizer style from bar to solid color
-- Supports GNOME Shell v45, v46, v47, and v50
 
 More features will be added in the future.
 

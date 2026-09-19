@@ -19,7 +19,7 @@ For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.o
 - Change visualizer size
 - Increase or decrease bands
 - Choose how many bands will appear on display
-- Flip the visualizer
+- ~~Flip the visualizer~~
 - Keep the visualizer always on top
 - Change the visualizer color
 - Change the visualizer style from bar to solid color
@@ -27,6 +27,7 @@ For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.o
 #  Fork Features
 
 - add import/export config button
+- Visualizer Orientation
 
 More features will be added in the future.
 

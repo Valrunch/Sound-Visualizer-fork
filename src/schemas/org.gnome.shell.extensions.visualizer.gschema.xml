@@ -24,9 +24,16 @@
 			<default>64</default>
 			<summary>Count Total Spects Bands</summary>
 		</key>
-		<key name="flip-visualizer" type="b">
-			<default>false</default>
-			<summary>Flip Visualizer</summary>
+		<key name="visualizer-orientation" type="s">
+			<choices>
+				<choice value='bottom'/>
+				<choice value='top'/>
+				<choice value='left'/>
+				<choice value='right'/>
+			</choices>
+			<default>'bottom'</default>
+			<summary>Visualizer orientation</summary>
+			<description>Which edge of the visualizer the bars grow from</description>
 		</key>
 		<key type="b" name="spect-over-ride-bool">
 			<default>false</default>

@@ -147,7 +147,7 @@ class PrefsWindow {
   fillPrefsWindow() {
     let visualWidget = this.create_page('Visualizer', 'emblem-system-symbolic'); {
       let groupVisual = this.create_group(visualWidget);
-      this.append_row(groupVisual, 'Flip the Visualizer', getSwitch('flip-visualizer', this._settings));
+      this.append_row(groupVisual, 'Visualizer Orientation', getOrientationDropdown(this._settings));
       this.append_row(groupVisual, 'Fill the Visualizer', getSwitch('fill-visualizer', this._settings));
       this.append_row(groupVisual, 'Always On Top', getSwitch('always-on-top', this._settings));
       this.append_row(groupVisual, 'Visualizer Height', getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings));
@@ -235,6 +235,17 @@ function getSpinButton(is_double, key, min, max, step, settings) {
     let spin = Gtk.SpinButton.new_with_range(min, max, step);
     settings.bind(key, spin, 'value', Gio.SettingsBindFlags.DEFAULT);
     return spin;
+}
+
+function getOrientationDropdown(settings) {
+    const orientations = ['bottom', 'top', 'left', 'right'];
+    const dropdown = Gtk.DropDown.new_from_strings(['Bottom', 'Top', 'Left', 'Right']);
+    dropdown.valign = Gtk.Align.CENTER;
+    dropdown.selected = orientations.indexOf(settings.get_string('visualizer-orientation'));
+    dropdown.connect('notify::selected', () => {
+        settings.set_string('visualizer-orientation', orientations[dropdown.selected]);
+    });
+    return dropdown;
 }
 
 function getColorButton(key, settings) {

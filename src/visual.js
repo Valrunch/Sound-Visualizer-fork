@@ -96,8 +96,14 @@ export const Visualizer = GObject.registerClass(
     actorInit() {
       this._spectHeight = this._settings.get_int('visualizer-height');
       this._spectWidth = this._settings.get_int('visualizer-width');
-      this._actor.height = this._spectHeight;
-      this._actor.width = this._spectWidth;
+      const orientation = this._settings.get_string('visualizer-orientation');
+      if (orientation === 'left' || orientation === 'right') {
+        this._actor.width = this._spectHeight;
+        this._actor.height = this._spectWidth;
+      } else {
+        this._actor.width = this._spectWidth;
+        this._actor.height = this._spectHeight;
+      }
     }
 
     _applyBandSettings() {
@@ -109,7 +115,7 @@ export const Visualizer = GObject.registerClass(
 
     _cacheDrawSettings() {
       this._lineWidth = this._settings.get_int('spects-line-width');
-      this._flip = this._settings.get_boolean('flip-visualizer');
+      this._orientation = this._settings.get_string('visualizer-orientation');
       this._fill = this._settings.get_boolean('fill-visualizer');
       this._color = this._parseColor(this._settings.get_string('visualizer-color'));
     }
@@ -119,46 +125,62 @@ export const Visualizer = GObject.registerClass(
       let [width, height] = area.get_surface_size();
       let cr = area.get_context();
       let lineW = this._lineWidth;
-      let flip = this._flip;
-      let color = this._color;
       let fill = this._fill;
+      let color = this._color;
 
-      if(!flip) {
-        cr.moveTo(0, height);
+      cr.save();
+
+      let w = width;
+      let h = height;
+
+      switch (this._orientation) {
+        case 'top':
+          cr.translate(0, height);
+          cr.scale(1, -1);
+          break;
+        case 'left':
+          cr.translate(width, 0);
+          cr.rotate(Math.PI / 2);
+          w = height;
+          h = width;
+          break;
+        case 'right':
+          cr.rotate(-Math.PI / 2);
+          cr.scale(-1, 1);
+          w = height;
+          h = width;
+          break;
+        default:
+          break;
       }
 
       cr.setLineWidth(lineW);
       cr.setSourceRGBA(color.red, color.green, color.blue, color.alpha);
 
-      for (let i = 0; i < values; i++) {
-        let startX = fill? i * width / values : lineW / 2 + i * width / values;
-        let magnitude = this._dupFreq[i] ?? 0;
-        let endY = height * magnitude / 80;
+      if (fill) {
+        cr.moveTo(0, h);
+      }
 
-        if (!flip) {
-            if(!fill) {
-                cr.moveTo(startX, height);
-                cr.lineTo(startX, endY);
-                cr.lineTo(startX, height - 1);
-            } else {
-                cr.lineTo(startX, endY);
-            }
+      for (let i = 0; i < values; i++) {
+        let startX = fill ? i * w / values : lineW / 2 + i * w / values;
+        let magnitude = this._dupFreq[i] ?? 0;
+        let endY = h * magnitude / 80;
+
+        if (!fill) {
+          cr.moveTo(startX, h);
+          cr.lineTo(startX, endY);
+          cr.lineTo(startX, h - 1);
         } else {
-            if (!fill) {
-                cr.moveTo(startX, 0);
-                cr.lineTo(startX, 1);
-                cr.lineTo(startX, height - endY);
-            } else {
-                cr.lineTo(startX , height - endY);
-            }
+          cr.lineTo(startX, endY);
         }
       }
 
-      if (!flip) {
-        cr.lineTo(width, height);
+      if (fill) {
+        cr.lineTo(w, h);
       }
 
       fill ? cr.fill() : cr.stroke();
+      cr.restore();
       cr.$dispose();
     }
 
@@ -470,7 +492,8 @@ export const Visualizer = GObject.registerClass(
           this._cacheDrawSettings();
           this._actor.queue_repaint();
         }),
-        this._settings.connect('changed::flip-visualizer', () => {
+        this._settings.connect('changed::visualizer-orientation', () => {
+          this.actorInit();
           this._cacheDrawSettings();
           this._actor.queue_repaint();
         }),

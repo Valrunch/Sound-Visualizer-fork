@@ -18,15 +18,6 @@ class PrefsWindow {
       icon_name: icon,
     });
     this._window.add(page);
-
-    // get the headerbar
-    if (!this.headerbar) {
-      let pages_stack = page.get_parent(); // AdwViewStack
-      let content_stack = pages_stack.get_parent().get_parent(); // GtkStack
-      let preferences = content_stack.get_parent(); // GtkBox
-      this.headerbar = preferences.get_first_child(); // AdwHeaderBar
-    }
-
     return page;
   }
 
@@ -90,6 +81,69 @@ class PrefsWindow {
     return linkRow;
   }
 
+  _createButton(label, callback) {
+    let button = new Gtk.Button({ label: _(label), valign: Gtk.Align.CENTER });
+    button.connect('clicked', callback);
+    return button;
+  }
+
+  _exportSettings() {
+    const keys = this._settings.settings_schema.list_keys();
+    const data = {};
+    for (const key of keys) {
+      data[key] = this._settings.get_value(key).print(true);
+    }
+    const chooser = new Gtk.FileChooserNative({
+      title: _('Export Visualizer Settings'),
+      action: Gtk.FileChooserAction.SAVE,
+      transient_for: this._window,
+      accept_label: _('Export'),
+    });
+    chooser.set_current_name('visualizer-settings.json');
+    chooser.connect('response', (dlg, response) => {
+      if (response === Gtk.ResponseType.ACCEPT) {
+        try {
+          const bytes = new TextEncoder().encode(JSON.stringify(data, null, 2));
+          dlg.get_file().replace_contents(bytes, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+        } catch (e) {
+          logError(e, 'Visualizer: export failed');
+        }
+      }
+      dlg.destroy();
+    });
+    chooser.show();
+  }
+
+  _importSettings() {
+    const chooser = new Gtk.FileChooserNative({
+      title: _('Import Visualizer Settings'),
+      action: Gtk.FileChooserAction.OPEN,
+      transient_for: this._window,
+      accept_label: _('Import'),
+    });
+    chooser.connect('response', (dlg, response) => {
+      if (response === Gtk.ResponseType.ACCEPT) {
+        try {
+          const [ok, contents] = dlg.get_file().load_contents(null);
+          if (ok) {
+            const data = JSON.parse(new TextDecoder().decode(contents));
+            for (const [key, value] of Object.entries(data)) {
+              try {
+                this._settings.set_value(key, GLib.Variant.parse(null, value, null, null));
+              } catch (e) {
+                logError(e, `Visualizer: skipping invalid key "${key}"`);
+              }
+            }
+          }
+        } catch (e) {
+          logError(e, 'Visualizer: import failed');
+        }
+      }
+      dlg.destroy();
+    });
+    chooser.show();
+  }
+
   fillPrefsWindow() {
     let visualWidget = this.create_page('Visualizer', 'emblem-system-symbolic'); {
       let groupVisual = this.create_group(visualWidget);
@@ -102,6 +156,17 @@ class PrefsWindow {
       this.append_row(groupVisual, 'Change Spects Band to Get', getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings));
       this.append_expander_row(groupVisual, 'Override Spect Value', 'Set Spects Value', 'spect-over-ride-bool', getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings));
       this.append_row(groupVisual, 'Pick color for Visualiser', getColorButton('visualizer-color', this._settings));
+
+      let groupBackup = this.create_group(visualWidget);
+      const backupBox = new Gtk.Box({
+        orientation: Gtk.Orientation.HORIZONTAL,
+        spacing: 12,
+        halign: Gtk.Align.CENTER,
+        margin_top: 6,
+      });
+      backupBox.append(this._createButton('Export…', () => this._exportSettings()));
+      backupBox.append(this._createButton('Import…', () => this._importSettings()));
+      groupBackup.add(backupBox);
     }
 
     let aboutPage = this.create_page('About', 'emblem-important-symbolic'); {

@@ -12,7 +12,7 @@ A Sound Visualizer for GNOME Shell based on GStreamer, specifically for Wayland.
 
 For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.org/extension/5530/circular-widgets/) extension.
 
-# Features
+# Original Features
 
 - Drag and drop support
 - Change audio source from the menu (Right/left click on the visualizer to change)
@@ -23,6 +23,10 @@ For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.o
 - Keep the visualizer always on top
 - Change the visualizer color
 - Change the visualizer style from bar to solid color
+
+#  Fork Features
+
+- add import/export config button
 
 More features will be added in the future.
 

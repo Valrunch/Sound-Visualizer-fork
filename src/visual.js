@@ -74,6 +74,11 @@ export const Visualizer = GObject.registerClass(
       let bus = this._pipeline.get_bus();
       bus.add_signal_watch();
       bus.connect('message::element', (bus, msg) => this.onMessage(bus, msg));
+      bus.connect('message::error', (bus, msg) => {
+        let [err, debug] = msg.get_error();
+        logError(err, `Visualizer: GStreamer pipeline error (${debug})`);
+        this._pipeline.set_state(Gst.State.NULL);
+      });
       this._pipeline.set_state(Gst.State.PLAYING);
     }
 

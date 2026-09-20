@@ -315,7 +315,9 @@ export const Visualizer = GObject.registerClass(
     async setDefaultSrc() {
       try {
         this._defaultSrc = await this.getDefaultSrc();
+        this._pipeline.set_state(Gst.State.NULL);
         this._src.set_property('device', this._defaultSrc);
+        this._pipeline.set_state(Gst.State.PLAYING);
       } catch (e) {
         logError(e);
       }
@@ -330,7 +332,16 @@ export const Visualizer = GObject.registerClass(
         this._defaultSrcId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
           this._control = Main.panel.statusArea.quickSettings._volumeInput._control;
           if (!this._controlHandlerId) {
-            this._controlHandlerId = this._control.connect('default-sink-changed', () => this.setDefaultSrc());
+            this._controlHandlerId = this._control.connect('default-sink-changed', () => {
+              if (this._sinkChangeDebounceId) {
+                GLib.Source.remove(this._sinkChangeDebounceId);
+              }
+              this._sinkChangeDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+                this._sinkChangeDebounceId = null;
+                this.setDefaultSrc();
+                return GLib.SOURCE_REMOVE;
+              });
+            });
           }
           let stream = this._control.get_default_sink();
           (stream !== null) ? resolve(stream.get_name() + '.monitor'): reject(Error('failure'));
@@ -468,6 +479,10 @@ export const Visualizer = GObject.registerClass(
       if (this._control && this._controlHandlerId) {
         this._control.disconnect(this._controlHandlerId);
         this._controlHandlerId = null;
+      }
+      if (this._sinkChangeDebounceId) {
+        GLib.Source.remove(this._sinkChangeDebounceId);
+        this._sinkChangeDebounceId = null;
       }
       this._pipeline.get_bus().remove_signal_watch();
       this._pipeline.set_state(Gst.State.NULL);

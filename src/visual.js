@@ -27,7 +27,6 @@ export const Visualizer = GObject.registerClass(
       this._extension = extension;
       this._control;
       this._visualMenuManager = new PopupMenu.PopupMenuManager(this);
-      this._sources = [];
       this._freq = [];
       this._dupFreq = [];
       this._actor = new St.DrawingArea();
@@ -348,7 +347,6 @@ export const Visualizer = GObject.registerClass(
           this._defaultSrcId = null;
           return GLib.SOURCE_REMOVE;
         });
-        this._sources.push(this._defaultSrcId);
       });
     }
 
@@ -366,7 +364,6 @@ export const Visualizer = GObject.registerClass(
           this._streamId = null;
           return GLib.SOURCE_REMOVE;
         });
-        this._sources.push(this._streamId);
       });
     }
 
@@ -420,7 +417,6 @@ export const Visualizer = GObject.registerClass(
         return GLib.SOURCE_REMOVE;
       });
       GLib.Source.set_name_by_id(this._menuTimeoutId, '[visualizer] this.popupMenu');
-      this._sources.push(this._menuTimeoutId);
     }
 
     async _popupMenu() {
@@ -469,7 +465,15 @@ export const Visualizer = GObject.registerClass(
     }
 
     destroy() {
-      this._removeSources(this._sources);
+      if (this._defaultSrcId) {
+        GLib.Source.remove(this._defaultSrcId);
+        this._defaultSrcId = null;
+      }
+      if (this._streamId) {
+        GLib.Source.remove(this._streamId);
+        this._streamId = null;
+      }
+      this._removeMenuTimeout();
       if (this._settingsHandlerIds) {
         for (let id of this._settingsHandlerIds) {
           this._settings.disconnect(id);
@@ -529,12 +533,4 @@ export const Visualizer = GObject.registerClass(
       ];
     }
 
-    _removeSources(src) {
-      for(let i=0; i<src.length; i++) {
-        if (src[i]) {
-            GLib.Source.remove(src[i]);
-            src[i] = null;
-        }
-      }
-    }
   });

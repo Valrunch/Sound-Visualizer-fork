@@ -80,28 +80,47 @@ export const Visualizer = GObject.registerClass(
     }
 
     setupGst() {
+      if (this._pipeline)
+        return;
+
       Gst.init(null);
-      this._pipeline = Gst.Pipeline.new("bin");
-      this._src = Gst.ElementFactory.make("pulsesrc", "src");
-      this.setDefaultSrc();
-      this._spectrum = Gst.ElementFactory.make("spectrum", "spectrum");
-      this._spectrum.set_property("bands", this._spectBands);
-      this._spectrum.set_property("threshold", -80);
-      this._spectrum.set_property("post-messages", true);
-      let _sink = Gst.ElementFactory.make("fakesink", "sink");
-      this._pipeline.add(this._src);
-      this._pipeline.add(this._spectrum);
-      this._pipeline.add(_sink);
-      if (!this._src.link(this._spectrum) || !this._spectrum.link(_sink)) {
-        console.log('can not link elements');
+      const pipeline = Gst.Pipeline.new("bin");
+      const src = Gst.ElementFactory.make("pulsesrc", "src");
+      const spectrum = Gst.ElementFactory.make("spectrum", "spectrum");
+      const sink = Gst.ElementFactory.make("fakesink", "sink");
+      if (!pipeline || !src || !spectrum || !sink) {
+        logError(new Error('Visualizer: unable to create the GStreamer pipeline elements'));
+        return;
       }
-      let bus = this._pipeline.get_bus();
+
+      spectrum.set_property("bands", this._spectBands);
+      spectrum.set_property("threshold", -80);
+      spectrum.set_property("post-messages", true);
+      pipeline.add(src);
+      pipeline.add(spectrum);
+      pipeline.add(sink);
+      if (!src.link(spectrum) || !spectrum.link(sink)) {
+        pipeline.set_state(Gst.State.NULL);
+        logError(new Error('Visualizer: unable to link the GStreamer pipeline elements'));
+        return;
+      }
+
+      this._pipeline = pipeline;
+      this._src = src;
+      this._spectrum = spectrum;
+      this._pipelineFailed = false;
+      this.setDefaultSrc();
+      const bus = pipeline.get_bus();
       bus.add_signal_watch();
       bus.connect('message::element', (bus, msg) => this.onMessage(bus, msg));
       bus.connect('message::error', (bus, msg) => {
         let [err, debug] = msg.get_error();
         logError(err, `Visualizer: GStreamer pipeline error (${debug})`);
+        this._resetFreq();
+        this._isSilent = true;
+        this._pipelineFailed = true;
         this._pipeline.set_state(Gst.State.NULL);
+        this._syncVisualizerState();
       });
       this._syncVisualizerState();
     }
@@ -116,7 +135,7 @@ export const Visualizer = GObject.registerClass(
       let activeBands = 0;
       for (let j = 0; j < limit; j++) {
         const magnitude = magnitudes.get_nth(j);
-        this._freq[j] = Math.abs(magnitude);
+        this._freq[j] = Math.max(0, Math.min(1, (magnitude + 80) / 80));
         if (magnitude > -70)
           activeBands++;
       }
@@ -151,7 +170,9 @@ export const Visualizer = GObject.registerClass(
     _syncVisualizerState() {
       this.visible = !this._isFullscreen && !this._isSilent;
       if (this._pipeline)
-        this._pipeline.set_state(this._isFullscreen ? Gst.State.NULL : Gst.State.PLAYING);
+        this._pipeline.set_state(
+          this._isFullscreen || this._pipelineFailed ? Gst.State.NULL : Gst.State.PLAYING
+        );
     }
 
     _removeSilenceTimeout() {
@@ -176,7 +197,8 @@ export const Visualizer = GObject.registerClass(
 
     _applyBandSettings() {
       this.getSpectBands();
-      this._spectrum.set_property("bands", this._spectBands);
+      if (this._spectrum)
+        this._spectrum.set_property("bands", this._spectBands);
       this._resetFreq();
       this._actor.queue_repaint();
     }
@@ -235,14 +257,11 @@ export const Visualizer = GObject.registerClass(
       for (let i = 0; i < values; i++) {
         let startX = fill ? i * w / values : lineW / 2 + i * w / values;
         let magnitude = this._dupFreq[i] ?? 0;
-        let endY = h * magnitude / 80;
 
         if (!fill) {
           cr.moveTo(startX, h);
-          cr.lineTo(startX, endY);
-        } else {
-          cr.lineTo(startX, endY);
         }
+        cr.lineTo(startX, h * (1 - magnitude));
       }
 
       if (fill) {
@@ -417,20 +436,45 @@ export const Visualizer = GObject.registerClass(
     }
 
     getStreams() {
-      return new Promise((resolve, reject) => {
-        if (this._streamId) {
-          GLib.Source.remove(this._streamId);
-          this._streamId = null;
-        }
+      if (this._streamPromise)
+        return this._streamPromise;
+      if (!this._control)
+        return Promise.reject(new Error('Visualizer: audio control is not ready'));
+
+      this._streamPromise = new Promise((resolve, reject) => {
+        let attempts = 0;
+        this._streamReject = reject;
         this._streamId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
-          if (this._control.get_state() == Gvc.MixerControlState.READY) {
-            let streams = this._control.get_streams();
-            (streams.length > 0) ? resolve(streams): reject(Error('failure'))
+          try {
+            if (this._control.get_state() === Gvc.MixerControlState.READY) {
+              this._streamId = null;
+              this._streamReject = null;
+              this._streamPromise = null;
+              resolve(this._control.get_streams());
+              return GLib.SOURCE_REMOVE;
+            }
+          } catch (error) {
+            this._streamId = null;
+            this._streamReject = null;
+            this._streamPromise = null;
+            logError(error, 'Visualizer: failed to retrieve audio streams');
+            reject(error);
+            return GLib.SOURCE_REMOVE;
           }
-          this._streamId = null;
-          return GLib.SOURCE_REMOVE;
+
+          attempts++;
+          if (attempts >= 5) {
+            this._streamId = null;
+            this._streamReject = null;
+            this._streamPromise = null;
+            reject(new Error('Visualizer: timed out waiting for audio streams'));
+            return GLib.SOURCE_REMOVE;
+          }
+
+          return GLib.SOURCE_CONTINUE;
         });
       });
+      return this._streamPromise;
     }
 
     _resetFreq() {
@@ -538,6 +582,10 @@ export const Visualizer = GObject.registerClass(
       if (this._streamId) {
         GLib.Source.remove(this._streamId);
         this._streamId = null;
+      }
+      if (this._streamReject) {
+        this._streamReject(new Error('Visualizer: audio stream request cancelled'));
+        this._streamReject = null;
       }
       if (this._startupTimeoutId) {
         GLib.Source.remove(this._startupTimeoutId);

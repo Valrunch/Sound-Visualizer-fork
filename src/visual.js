@@ -254,7 +254,7 @@ export const Visualizer = GObject.registerClass(
         cr.moveTo(0, h);
         if (values > 0) {
           const points = this._dupFreq.map((magnitude, i) => ({
-            x: i * w / values,
+            x: values > 1 ? i * w / (values - 1) : w / 2,
             y: h * (1 - magnitude)
           }));
           cr.lineTo(points[0].x, points[0].y);

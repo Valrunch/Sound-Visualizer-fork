@@ -109,6 +109,7 @@ export const Visualizer = GObject.registerClass(
       this._src = src;
       this._spectrum = spectrum;
       this._pipelineFailed = false;
+      this._audioSourceReady = false;
       this.setDefaultSrc();
       const bus = pipeline.get_bus();
       bus.add_signal_watch();
@@ -171,7 +172,9 @@ export const Visualizer = GObject.registerClass(
       this.visible = !this._isFullscreen && !this._isSilent;
       if (this._pipeline)
         this._pipeline.set_state(
-          this._isFullscreen || this._pipelineFailed ? Gst.State.NULL : Gst.State.PLAYING
+          this._isFullscreen || this._pipelineFailed || !this._audioSourceReady
+            ? Gst.State.NULL
+            : Gst.State.PLAYING
         );
     }
 
@@ -416,12 +419,18 @@ export const Visualizer = GObject.registerClass(
 
     async setDefaultSrc() {
       try {
-        this._defaultSrc = await this.getDefaultSrc();
-        this._pipeline.set_state(Gst.State.NULL);
-        this._src.set_property('device', this._defaultSrc);
+        this._audioSourceReady = false;
+        this._syncVisualizerState();
+        const defaultSrc = await this.getDefaultSrc();
+        if (!this._pipeline || !this._src)
+          return;
+
+        this._src.set_property('device', defaultSrc);
+        this._defaultSrc = defaultSrc;
+        this._audioSourceReady = true;
         this._syncVisualizerState();
       } catch (e) {
-        logError(e);
+        logError(e, 'Visualizer: unable to select the default output monitor; audio capture remains stopped');
       }
     }
 
@@ -432,22 +441,33 @@ export const Visualizer = GObject.registerClass(
           this._defaultSrcId = null;
         }
         this._defaultSrcId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
-          this._control = Main.panel.statusArea.quickSettings._volumeInput._control;
-          if (!this._controlHandlerId) {
-            this._controlHandlerId = this._control.connect('default-sink-changed', () => {
-              if (this._sinkChangeDebounceId) {
-                GLib.Source.remove(this._sinkChangeDebounceId);
-              }
-              this._sinkChangeDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
-                this._sinkChangeDebounceId = null;
-                this.setDefaultSrc();
-                return GLib.SOURCE_REMOVE;
+          try {
+            this._control = Main.panel.statusArea.quickSettings._volumeInput._control;
+            if (!this._control)
+              throw new Error('GNOME audio control is unavailable');
+
+            if (!this._controlHandlerId) {
+              this._controlHandlerId = this._control.connect('default-sink-changed', () => {
+                if (this._sinkChangeDebounceId) {
+                  GLib.Source.remove(this._sinkChangeDebounceId);
+                }
+                this._sinkChangeDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+                  this._sinkChangeDebounceId = null;
+                  this.setDefaultSrc();
+                  return GLib.SOURCE_REMOVE;
+                });
               });
-            });
+            }
+            const stream = this._control.get_default_sink();
+            if (!stream)
+              throw new Error('No default audio output is available');
+
+            resolve(`${stream.get_name()}.monitor`);
+          } catch (error) {
+            reject(error);
+          } finally {
+            this._defaultSrcId = null;
           }
-          let stream = this._control.get_default_sink();
-          (stream !== null) ? resolve(stream.get_name() + '.monitor'): reject(Error('failure'));
-          this._defaultSrcId = null;
           return GLib.SOURCE_REMOVE;
         });
       });

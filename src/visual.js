@@ -29,6 +29,25 @@ export const Visualizer = GObject.registerClass(
       this._visualMenuManager = new PopupMenu.PopupMenuManager(this);
       this._freq = [];
       this._dupFreq = [];
+      this._isSilent = true;
+      this.visible = false;
+      this._isFullscreen = this._isAnyMonitorFullscreen();
+      this._fullscreenChangedId = global.display.connect('in-fullscreen-changed', () => {
+        const isFullscreen = this._isAnyMonitorFullscreen();
+        if (isFullscreen === this._isFullscreen)
+          return;
+
+        this._isFullscreen = isFullscreen;
+        if (isFullscreen) {
+          this._isSilent = true;
+          this._resetFreq();
+          this._removeSilenceTimeout();
+        } else if (this._startupReady && !this._pipeline) {
+          this.setupGst();
+          return;
+        }
+        this._syncVisualizerState();
+      });
       this._actor = new St.DrawingArea();
       this.add_child(this._actor);
       this._settings = this._extension.getSettings();
@@ -49,9 +68,15 @@ export const Visualizer = GObject.registerClass(
       this.getSpectBands();
       this._cacheDrawSettings();
       this._actor.connect('repaint', (area) => this.drawStuff(area));
-      this.setupGst();
       this.setPosition();
       this._setParent();
+      this._startupTimeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, 3, () => {
+        this._startupTimeoutId = null;
+        this._startupReady = true;
+        if (!this._isFullscreen)
+          this.setupGst();
+        return GLib.SOURCE_REMOVE;
+      });
     }
 
     setupGst() {
@@ -78,7 +103,7 @@ export const Visualizer = GObject.registerClass(
         logError(err, `Visualizer: GStreamer pipeline error (${debug})`);
         this._pipeline.set_state(Gst.State.NULL);
       });
-      this._pipeline.set_state(Gst.State.PLAYING);
+      this._syncVisualizerState();
     }
 
     onMessage(bus, msg) {
@@ -88,13 +113,52 @@ export const Visualizer = GObject.registerClass(
         return;
       }
       let limit = Math.floor(this._spectBands * 2 / 3);
+      let activeBands = 0;
       for (let j = 0; j < limit; j++) {
-        this._freq[j] = Math.abs(magnitudes.get_nth(j));
+        const magnitude = magnitudes.get_nth(j);
+        this._freq[j] = Math.abs(magnitude);
+        if (magnitude > -70)
+          activeBands++;
       }
       if (this._freq.length > 1){
           this._createdup(this._freq,this._dupFreq, this._freq.length * 2);
       }
-      this._actor.queue_repaint();
+
+      const requiredActiveBands = Math.min(limit, Math.max(2, Math.ceil(limit * 0.05)));
+      const hasAudio = limit > 0 && activeBands >= requiredActiveBands;
+      if (hasAudio) {
+        this._removeSilenceTimeout();
+        if (this._isSilent) {
+          this._isSilent = false;
+          this._syncVisualizerState();
+        }
+        this._actor.queue_repaint();
+      } else if (!this._silenceTimeoutId) {
+        this._silenceTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1500, () => {
+          this._silenceTimeoutId = null;
+          this._isSilent = true;
+          this._syncVisualizerState();
+          return GLib.SOURCE_REMOVE;
+        });
+      }
+    }
+
+    _isAnyMonitorFullscreen() {
+      return Main.layoutManager.monitors.some((_, index) =>
+        global.display.get_monitor_in_fullscreen(index));
+    }
+
+    _syncVisualizerState() {
+      this.visible = !this._isFullscreen && !this._isSilent;
+      if (this._pipeline)
+        this._pipeline.set_state(this._isFullscreen ? Gst.State.NULL : Gst.State.PLAYING);
+    }
+
+    _removeSilenceTimeout() {
+      if (this._silenceTimeoutId) {
+        GLib.Source.remove(this._silenceTimeoutId);
+        this._silenceTimeoutId = null;
+      }
     }
 
     actorInit() {
@@ -159,6 +223,9 @@ export const Visualizer = GObject.registerClass(
       }
 
       cr.setLineWidth(lineW);
+      if (!fill) {
+        cr.setLineCap(Cairo.LineCap.ROUND);
+      }
       cr.setSourceRGBA(color.red, color.green, color.blue, color.alpha);
 
       if (fill) {
@@ -173,7 +240,6 @@ export const Visualizer = GObject.registerClass(
         if (!fill) {
           cr.moveTo(startX, h);
           cr.lineTo(startX, endY);
-          cr.lineTo(startX, h - 1);
         } else {
           cr.lineTo(startX, endY);
         }
@@ -316,7 +382,7 @@ export const Visualizer = GObject.registerClass(
         this._defaultSrc = await this.getDefaultSrc();
         this._pipeline.set_state(Gst.State.NULL);
         this._src.set_property('device', this._defaultSrc);
-        this._pipeline.set_state(Gst.State.PLAYING);
+        this._syncVisualizerState();
       } catch (e) {
         logError(e);
       }
@@ -473,6 +539,15 @@ export const Visualizer = GObject.registerClass(
         GLib.Source.remove(this._streamId);
         this._streamId = null;
       }
+      if (this._startupTimeoutId) {
+        GLib.Source.remove(this._startupTimeoutId);
+        this._startupTimeoutId = null;
+      }
+      this._removeSilenceTimeout();
+      if (this._fullscreenChangedId) {
+        global.display.disconnect(this._fullscreenChangedId);
+        this._fullscreenChangedId = null;
+      }
       this._removeMenuTimeout();
       if (this._settingsHandlerIds) {
         for (let id of this._settingsHandlerIds) {
@@ -488,8 +563,10 @@ export const Visualizer = GObject.registerClass(
         GLib.Source.remove(this._sinkChangeDebounceId);
         this._sinkChangeDebounceId = null;
       }
-      this._pipeline.get_bus().remove_signal_watch();
-      this._pipeline.set_state(Gst.State.NULL);
+      if (this._pipeline) {
+        this._pipeline.get_bus().remove_signal_watch();
+        this._pipeline.set_state(Gst.State.NULL);
+      }
       const parent = this.get_parent();
         if (parent === Main.layoutManager.uiGroup)
             Main.layoutManager.removeChrome(this);

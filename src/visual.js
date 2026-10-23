@@ -252,20 +252,38 @@ export const Visualizer = GObject.registerClass(
 
       if (fill) {
         cr.moveTo(0, h);
-      }
+        if (values > 0) {
+          const points = this._dupFreq.map((magnitude, i) => ({
+            x: i * w / values,
+            y: h * (1 - magnitude)
+          }));
+          cr.lineTo(points[0].x, points[0].y);
 
-      for (let i = 0; i < values; i++) {
-        let startX = fill ? i * w / values : lineW / 2 + i * w / values;
-        let magnitude = this._dupFreq[i] ?? 0;
-
-        if (!fill) {
-          cr.moveTo(startX, h);
+          for (let i = 0; i < points.length - 1; i++) {
+            const previous = points[Math.max(0, i - 1)];
+            const current = points[i];
+            const next = points[i + 1];
+            const following = points[Math.min(points.length - 1, i + 2)];
+            const control1Y = current.y + (next.y - previous.y) / 6;
+            const control2Y = next.y - (following.y - current.y) / 6;
+            cr.curveTo(
+              current.x + (next.x - current.x) / 3,
+              Math.max(0, Math.min(h, control1Y)),
+              current.x + 2 * (next.x - current.x) / 3,
+              Math.max(0, Math.min(h, control2Y)),
+              next.x,
+              next.y
+            );
+          }
         }
-        cr.lineTo(startX, h * (1 - magnitude));
-      }
-
-      if (fill) {
         cr.lineTo(w, h);
+      } else {
+        for (let i = 0; i < values; i++) {
+          let startX = lineW / 2 + i * w / values;
+          let magnitude = this._dupFreq[i] ?? 0;
+          cr.moveTo(startX, h);
+          cr.lineTo(startX, h * (1 - magnitude));
+        }
       }
 
       fill ? cr.fill() : cr.stroke();

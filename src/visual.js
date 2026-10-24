@@ -5,7 +5,6 @@ import GLib from 'gi://GLib';
 import St from 'gi://St';
 import Gst from 'gi://Gst';
 import Gvc from 'gi://Gvc';
-import Meta from 'gi://Meta';
 import Cairo from 'gi://cairo';
 import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 const majorVersion = Number(Config.PACKAGE_VERSION.split('.')[0]);
@@ -258,6 +257,7 @@ export const Visualizer = GObject.registerClass(
       this._lineWidth = this._settings.get_int('spects-line-width');
       this._orientation = this._settings.get_string('visualizer-orientation');
       this._fill = this._settings.get_boolean('fill-visualizer');
+      this._glow = this._settings.get_boolean('glow-effect');
       this._color = this._parseColor(this._settings.get_string('visualizer-color'));
     }
 
@@ -299,7 +299,6 @@ export const Visualizer = GObject.registerClass(
       if (!fill) {
         cr.setLineCap(Cairo.LineCap.ROUND);
       }
-      cr.setSourceRGBA(color.red, color.green, color.blue, color.alpha);
 
       if (fill) {
         cr.moveTo(0, h);
@@ -340,6 +339,26 @@ export const Visualizer = GObject.registerClass(
         }
       }
 
+      if (this._glow) {
+        const path = cr.copyPath();
+        const glowLayers = [
+          { width: lineW * 4, opacity: 0.08 },
+          { width: lineW * 2.5, opacity: 0.16 },
+          { width: lineW * 1.25, opacity: 0.3 },
+        ];
+        cr.setLineCap(Cairo.LineCap.ROUND);
+        cr.setLineJoin(Cairo.LineJoin.ROUND);
+        for (const layer of glowLayers) {
+          cr.appendPath(path);
+          cr.setLineWidth(layer.width);
+          cr.setSourceRGBA(color.red, color.green, color.blue, color.alpha * layer.opacity);
+          cr.stroke();
+        }
+        cr.appendPath(path);
+      }
+
+      cr.setLineWidth(lineW);
+      cr.setSourceRGBA(color.red, color.green, color.blue, color.alpha);
       fill ? cr.fill() : cr.stroke();
       cr.restore();
       cr.$dispose();
@@ -384,27 +403,61 @@ export const Visualizer = GObject.registerClass(
       return this._spectBands;
     }
 
-    _getMetaRectForCoords(x, y) {
-      this.get_allocation_box();
-      let rect = new Meta.Rectangle();
-      [rect.x, rect.y] = [x, y];
-      [rect.width, rect.height] = this.get_transformed_size();
-      return rect;
+    _getRectForCoords(x, y) {
+      const [width, height] = this.get_transformed_size();
+      return { x, y, width, height };
     }
 
     _getWorkAreaForRect(rect) {
-      let monitorIndex = global.display.get_monitor_index_for_rect(rect);
+      const monitors = Main.layoutManager.monitors;
+      if (monitors.length === 0)
+        throw new Error('Visualizer: no monitors are available');
+
+      const rectRight = rect.x + rect.width;
+      const rectBottom = rect.y + rect.height;
+      let monitorIndex = 0;
+      let largestOverlap = 0;
+      for (let i = 0; i < monitors.length; i++) {
+        const monitor = monitors[i];
+        const overlapWidth = Math.max(0, Math.min(rectRight, monitor.x + monitor.width) - Math.max(rect.x, monitor.x));
+        const overlapHeight = Math.max(0, Math.min(rectBottom, monitor.y + monitor.height) - Math.max(rect.y, monitor.y));
+        const overlap = overlapWidth * overlapHeight;
+        if (overlap > largestOverlap) {
+          largestOverlap = overlap;
+          monitorIndex = i;
+        }
+      }
+
+      if (largestOverlap === 0) {
+        const centerX = rect.x + rect.width / 2;
+        const centerY = rect.y + rect.height / 2;
+        let nearestDistance = Infinity;
+        for (let i = 0; i < monitors.length; i++) {
+          const monitor = monitors[i];
+          const dx = Math.max(monitor.x - centerX, 0, centerX - (monitor.x + monitor.width));
+          const dy = Math.max(monitor.y - centerY, 0, centerY - (monitor.y + monitor.height));
+          const distance = dx * dx + dy * dy;
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            monitorIndex = i;
+          }
+        }
+      }
+
       return Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
     }
 
     _isOnScreen(x, y) {
-      let rect = this._getMetaRectForCoords(x, y);
+      let rect = this._getRectForCoords(x, y);
       let monitorWorkArea = this._getWorkAreaForRect(rect);
-      return monitorWorkArea.contains_rect(rect);
+      return rect.x >= monitorWorkArea.x &&
+        rect.y >= monitorWorkArea.y &&
+        rect.x + rect.width <= monitorWorkArea.x + monitorWorkArea.width &&
+        rect.y + rect.height <= monitorWorkArea.y + monitorWorkArea.height;
     }
 
     _keepOnScreen(x, y) {
-      let rect = this._getMetaRectForCoords(x, y);
+      let rect = this._getRectForCoords(x, y);
       let monitorWorkArea = this._getWorkAreaForRect(rect);
       let monitorRight = monitorWorkArea.x + monitorWorkArea.width;
       let monitorBottom = monitorWorkArea.y + monitorWorkArea.height;
@@ -724,6 +777,7 @@ export const Visualizer = GObject.registerClass(
         this._settings.connect('changed::visualizer-orientation', () => this._applyGeometrySettings()),
         this._settings.connect('changed::spects-line-width', () => this._applyDrawSettings()),
         this._settings.connect('changed::fill-visualizer', () => this._applyDrawSettings()),
+        this._settings.connect('changed::glow-effect', () => this._applyDrawSettings()),
         this._settings.connect('changed::visualizer-color', () => this._applyDrawSettings()),
         this._settings.connect('changed::always-on-top', () => this._setParent()),
       ];

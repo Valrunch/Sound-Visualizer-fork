@@ -59,5 +59,10 @@
 			<default>false</default>
 			<summary>Fill Visualizer with color</summary>
 		</key>
+		<key name="glow-effect" type="b">
+			<default>false</default>
+			<summary>Enable glow effect</summary>
+			<description>Draw a colored glow around the visualizer</description>
+		</key>
 	</schema>
 </schemalist>

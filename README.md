@@ -36,6 +36,7 @@ For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.o
 - Visualizer Orientation
 - Automatically hide the visualizer when audio is silent
 - Pause audio analysis while a fullscreen window is active
+- Glow effect
 
 More features will be added in the future.
 

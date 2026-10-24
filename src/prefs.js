@@ -149,6 +149,7 @@ class PrefsWindow {
       let groupVisual = this.create_group(visualWidget);
       this.append_row(groupVisual, 'Visualizer Orientation', getOrientationDropdown(this._settings));
       this.append_row(groupVisual, 'Fill the Visualizer', getSwitch('fill-visualizer', this._settings));
+      this.append_row(groupVisual, 'Glow Effect', getSwitch('glow-effect', this._settings));
       this.append_row(groupVisual, 'Always On Top', getSwitch('always-on-top', this._settings));
       this.append_row(groupVisual, 'Visualizer Height', getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings));
       this.append_row(groupVisual, 'Visualizer Width', getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings));

@@ -5,7 +5,7 @@
 > [!CAUTION]
 > **Work In Progress:** This fork is currently under development. It is not yet stable or finished. Expect bugs and frequent updates!
 
-> Current extension version: 10
+> Current extension experimental version : 10
 
 # Sound Visualizer
 A Sound Visualizer for GNOME Shell based on GStreamer, specifically for Wayland.

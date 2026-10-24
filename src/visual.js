@@ -2,15 +2,13 @@ import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
 import GLib from 'gi://GLib';
-import Gio from 'gi://Gio';
 import St from 'gi://St';
 import Gst from 'gi://Gst';
 import Gvc from 'gi://Gvc';
 import Meta from 'gi://Meta';
-import Shell from 'gi://Shell';
 import Cairo from 'gi://cairo';
 import * as Config from 'resource:///org/gnome/shell/misc/config.js';
-const [majorVersion, minorVersion] = Config.PACKAGE_VERSION.split('.').map(s => Number(s));
+const majorVersion = Number(Config.PACKAGE_VERSION.split('.')[0]);
 import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
@@ -25,11 +23,12 @@ export const Visualizer = GObject.registerClass(
         can_focus: true
       });
       this._extension = extension;
-      this._control;
+      this._control = null;
       this._visualMenuManager = new PopupMenu.PopupMenuManager(this);
       this._freq = [];
       this._dupFreq = [];
       this._isSilent = true;
+      this._maximizedWindowBlocked = false;
       this.visible = false;
       this._isFullscreen = this._isAnyMonitorFullscreen();
       this._fullscreenChangedId = global.display.connect('in-fullscreen-changed', () => {
@@ -70,6 +69,15 @@ export const Visualizer = GObject.registerClass(
       this._actor.connect('repaint', (area) => this.drawStuff(area));
       this.setPosition();
       this._setParent();
+      this._maximizedWindowTimeoutId = GLib.timeout_add_seconds(
+        GLib.PRIORITY_DEFAULT,
+        1,
+        () => {
+          if (!this._isFullscreen && !this._settings.get_boolean('always-on-top'))
+            this._syncMaximizedWindowState();
+          return GLib.SOURCE_CONTINUE;
+        }
+      );
       this._startupTimeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, 3, () => {
         this._startupTimeoutId = null;
         this._startupReady = true;
@@ -168,11 +176,34 @@ export const Visualizer = GObject.registerClass(
         global.display.get_monitor_in_fullscreen(index));
     }
 
+    _syncMaximizedWindowState() {
+      const workspace = global.workspace_manager.get_active_workspace();
+      const hasMaximizedWindow = workspace.list_windows().some(window =>
+        !window.minimized &&
+        window.maximized_horizontally &&
+        window.maximized_vertically
+      );
+
+      const blocked = hasMaximizedWindow &&
+        !this._settings.get_boolean('always-on-top');
+      if (blocked === this._maximizedWindowBlocked)
+        return;
+
+      if (blocked && !this._maximizedWindowBlocked) {
+        this._isSilent = true;
+        this._resetFreq();
+        this._removeSilenceTimeout();
+      }
+      this._maximizedWindowBlocked = blocked;
+      this._syncVisualizerState();
+    }
+
     _syncVisualizerState() {
-      this.visible = !this._isFullscreen && !this._isSilent;
+      this.visible = !this._isFullscreen && !this._maximizedWindowBlocked && !this._isSilent;
       if (this._pipeline)
         this._pipeline.set_state(
-          this._isFullscreen || this._pipelineFailed || !this._audioSourceReady
+          this._isFullscreen || this._maximizedWindowBlocked ||
+          this._pipelineFailed || !this._audioSourceReady
             ? Gst.State.NULL
             : Gst.State.PLAYING
         );
@@ -189,13 +220,18 @@ export const Visualizer = GObject.registerClass(
       this._spectHeight = this._settings.get_int('visualizer-height');
       this._spectWidth = this._settings.get_int('visualizer-width');
       const orientation = this._settings.get_string('visualizer-orientation');
+      let width;
+      let height;
       if (orientation === 'left' || orientation === 'right') {
-        this._actor.width = this._spectHeight;
-        this._actor.height = this._spectWidth;
+        width = this._spectHeight;
+        height = this._spectWidth;
       } else {
-        this._actor.width = this._spectWidth;
-        this._actor.height = this._spectHeight;
+        width = this._spectWidth;
+        height = this._spectHeight;
       }
+      this._actor.set_size(width, height);
+      this.set_size(width, height);
+      this.queue_relayout();
     }
 
     _applyBandSettings() {
@@ -203,6 +239,18 @@ export const Visualizer = GObject.registerClass(
       if (this._spectrum)
         this._spectrum.set_property("bands", this._spectBands);
       this._resetFreq();
+      this._actor.queue_repaint();
+    }
+
+    _applyGeometrySettings() {
+      this.actorInit();
+      this._cacheDrawSettings();
+      this.setPosition();
+      this._actor.queue_repaint();
+    }
+
+    _applyDrawSettings() {
+      this._cacheDrawSettings();
       this._actor.queue_repaint();
     }
 
@@ -256,27 +304,30 @@ export const Visualizer = GObject.registerClass(
       if (fill) {
         cr.moveTo(0, h);
         if (values > 0) {
-          const points = this._dupFreq.map((magnitude, i) => ({
-            x: values > 1 ? i * w / (values - 1) : w / 2,
-            y: h * (1 - magnitude)
-          }));
-          cr.lineTo(points[0].x, points[0].y);
+          if (values === 1) {
+            cr.lineTo(w / 2, h * (1 - this._dupFreq[0]));
+          } else {
+            const xStep = w / (values - 1);
+            cr.lineTo(0, h * (1 - this._dupFreq[0]));
 
-          for (let i = 0; i < points.length - 1; i++) {
-            const previous = points[Math.max(0, i - 1)];
-            const current = points[i];
-            const next = points[i + 1];
-            const following = points[Math.min(points.length - 1, i + 2)];
-            const control1Y = current.y + (next.y - previous.y) / 6;
-            const control2Y = next.y - (following.y - current.y) / 6;
-            cr.curveTo(
-              current.x + (next.x - current.x) / 3,
-              Math.max(0, Math.min(h, control1Y)),
-              current.x + 2 * (next.x - current.x) / 3,
-              Math.max(0, Math.min(h, control2Y)),
-              next.x,
-              next.y
-            );
+            for (let i = 0; i < values - 1; i++) {
+              const previousY = h * (1 - this._dupFreq[Math.max(0, i - 1)]);
+              const currentY = h * (1 - this._dupFreq[i]);
+              const nextY = h * (1 - this._dupFreq[i + 1]);
+              const followingY = h * (1 - this._dupFreq[Math.min(values - 1, i + 2)]);
+              const currentX = i * xStep;
+              const nextX = (i + 1) * xStep;
+              const control1Y = currentY + (nextY - previousY) / 6;
+              const control2Y = nextY - (followingY - currentY) / 6;
+              cr.curveTo(
+                currentX + (nextX - currentX) / 3,
+                Math.max(0, Math.min(h, control1Y)),
+                currentX + 2 * (nextX - currentX) / 3,
+                Math.max(0, Math.min(h, control2Y)),
+                nextX,
+                nextY
+              );
+            }
           }
         }
         cr.lineTo(w, h);
@@ -384,17 +435,13 @@ export const Visualizer = GObject.registerClass(
     }
 
     _onDragBegin() {
-      this.isDragging = true;
       this._dragMonitor = {
         dragMotion: this._onDragMotion.bind(this)
       };
       DND.addDragMonitor(this._dragMonitor);
       let p = this.get_transformed_position();
-      this.startX = this.oldX = p[0];
-      this.startY = this.oldY = p[1];
-      this.get_allocation_box();
-      this.rowHeight = this.height;
-      this.rowWidth = this.width;
+      this.oldX = p[0];
+      this.oldY = p[1];
     }
 
     _onDragMotion(dragEvent) {
@@ -532,6 +579,7 @@ export const Visualizer = GObject.registerClass(
             Main.layoutManager.addTopChrome(this);
         else
             Main.layoutManager._backgroundGroup.add_child(this);
+        this._syncMaximizedWindowState();
     }
 
     vfunc_button_press_event() {
@@ -629,6 +677,10 @@ export const Visualizer = GObject.registerClass(
         GLib.Source.remove(this._startupTimeoutId);
         this._startupTimeoutId = null;
       }
+      if (this._maximizedWindowTimeoutId) {
+        GLib.Source.remove(this._maximizedWindowTimeoutId);
+        this._maximizedWindowTimeoutId = null;
+      }
       this._removeSilenceTimeout();
       if (this._fullscreenChangedId) {
         global.display.disconnect(this._fullscreenChangedId);
@@ -667,31 +719,12 @@ export const Visualizer = GObject.registerClass(
         this._settings.connect('changed::total-spects-band', () => this._applyBandSettings()),
         this._settings.connect('changed::spect-over-ride', () => this._applyBandSettings()),
         this._settings.connect('changed::spect-over-ride-bool', () => this._applyBandSettings()),
-        this._settings.connect('changed::visualizer-height', () => {
-          this.actorInit();
-          this._actor.queue_repaint();
-        }),
-        this._settings.connect('changed::visualizer-width', () => {
-          this.actorInit();
-          this._actor.queue_repaint();
-        }),
-        this._settings.connect('changed::spects-line-width', () => {
-          this._cacheDrawSettings();
-          this._actor.queue_repaint();
-        }),
-        this._settings.connect('changed::visualizer-orientation', () => {
-          this.actorInit();
-          this._cacheDrawSettings();
-          this._actor.queue_repaint();
-        }),
-        this._settings.connect('changed::fill-visualizer', () => {
-          this._cacheDrawSettings();
-          this._actor.queue_repaint();
-        }),
-        this._settings.connect('changed::visualizer-color', () => {
-          this._cacheDrawSettings();
-          this._actor.queue_repaint();
-        }),
+        this._settings.connect('changed::visualizer-height', () => this._applyGeometrySettings()),
+        this._settings.connect('changed::visualizer-width', () => this._applyGeometrySettings()),
+        this._settings.connect('changed::visualizer-orientation', () => this._applyGeometrySettings()),
+        this._settings.connect('changed::spects-line-width', () => this._applyDrawSettings()),
+        this._settings.connect('changed::fill-visualizer', () => this._applyDrawSettings()),
+        this._settings.connect('changed::visualizer-color', () => this._applyDrawSettings()),
         this._settings.connect('changed::always-on-top', () => this._setParent()),
       ];
     }

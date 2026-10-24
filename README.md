@@ -55,7 +55,7 @@ make install
 
 # Acknowledgements & Credits
 
-**This project is a patched version of the original [Sound Visualizer](https://gitlab.com/raihan2000/visualizer) created by "raihan2000".**
+**This project is a patched version of the original [Visualizer](https://github.com/raihan2000/visualizer) created by "raihan2000".**
 
 **Full credit for the original source code goes to the original author.**
 

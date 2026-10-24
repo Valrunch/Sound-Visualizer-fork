@@ -259,6 +259,7 @@ export const Visualizer = GObject.registerClass(
       this._fill = this._settings.get_boolean('fill-visualizer');
       this._glow = this._settings.get_boolean('glow-effect');
       this._color = this._parseColor(this._settings.get_string('visualizer-color'));
+      this._glowColor = this._parseColor(this._settings.get_string('glow-color'));
     }
 
     drawStuff(area) {
@@ -351,7 +352,12 @@ export const Visualizer = GObject.registerClass(
         for (const layer of glowLayers) {
           cr.appendPath(path);
           cr.setLineWidth(layer.width);
-          cr.setSourceRGBA(color.red, color.green, color.blue, color.alpha * layer.opacity);
+          cr.setSourceRGBA(
+            this._glowColor.red,
+            this._glowColor.green,
+            this._glowColor.blue,
+            this._glowColor.alpha * layer.opacity
+          );
           cr.stroke();
         }
         cr.appendPath(path);
@@ -778,6 +784,7 @@ export const Visualizer = GObject.registerClass(
         this._settings.connect('changed::spects-line-width', () => this._applyDrawSettings()),
         this._settings.connect('changed::fill-visualizer', () => this._applyDrawSettings()),
         this._settings.connect('changed::glow-effect', () => this._applyDrawSettings()),
+        this._settings.connect('changed::glow-color', () => this._applyDrawSettings()),
         this._settings.connect('changed::visualizer-color', () => this._applyDrawSettings()),
         this._settings.connect('changed::always-on-top', () => this._setParent()),
       ];

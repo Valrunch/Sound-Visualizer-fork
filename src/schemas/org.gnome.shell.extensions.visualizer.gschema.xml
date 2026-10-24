@@ -64,5 +64,10 @@
 			<summary>Enable glow effect</summary>
 			<description>Draw a colored glow around the visualizer</description>
 		</key>
+		<key name="glow-color" type="s">
+			<default>"white"</default>
+			<summary>Glow color</summary>
+			<description>Color used for the visualizer glow</description>
+		</key>
 	</schema>
 </schemalist>

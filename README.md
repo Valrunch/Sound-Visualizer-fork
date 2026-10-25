@@ -30,13 +30,15 @@ For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.o
 - Change the visualizer color
 - Change the visualizer style from bar to solid color
 
-#  Fork Features
+# Fork Features
 
-- add import/export config button
-- Visualizer Orientation
-- Automatically hide the visualizer when audio is silent
-- Pause audio analysis while a fullscreen window is active
-- Glow effect (experimental), with a customizable color
+| Feature | Status |
+|---|---|
+| Import/export config buttons |✅ Available|
+| Visualizer orientation |✅ Available|
+| Automatically hide the visualizer when audio is silent |✅ Available|
+| Pause audio analysis while a fullscreen window is active | 🚧 In progress |
+| Glow effect (experimental), with a customizable color | 🚧 In progress |
 
 More features will be added in the future.
 

@@ -20,15 +20,17 @@ For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.o
 
 # Original Features
 
-- Drag and drop support
-- ~~Change audio source from the menu (Right/left click on the visualizer to change)~~
-- Change visualizer size
-- Increase or decrease bands
-- Choose how many bands will appear on display
-- ~~Flip the visualizer~~
-- Keep the visualizer always on top
-- Change the visualizer color
-- Change the visualizer style from bar to solid color
+| Feature | Status |
+|---|---|
+| Drag and drop support | ✅ Available |
+| Change audio source from the menu (Right/left click on the visualizer to change) | ❌Removed | 
+| Change visualizer size | ✅ Available |
+| Increase or decrease bands | ✅ Available |
+| Choose how many bands will appear on display | ✅ Available | 
+| Flip the visualizer | ❌Removed |
+| Keep the visualizer always on top | ✅ Available |
+| Change the visualizer color | ✅ Available |
+| Change the visualizer style from bar to solid color | ✅ Available |
 
 # Fork Features
 

@@ -4,7 +4,6 @@ import GObject from 'gi://GObject';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
 import Gst from 'gi://Gst';
-import Gvc from 'gi://Gvc';
 import Cairo from 'gi://cairo';
 import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 const majorVersion = Number(Config.PACKAGE_VERSION.split('.')[0]);
@@ -523,6 +522,20 @@ export const Visualizer = GObject.registerClass(
       this._ignorePositionUpdate = false;
     }
 
+    _getAudioControl() {
+      const quickSettings = Main.panel?.statusArea?.quickSettings;
+      if (!quickSettings)
+        return null;
+
+      const candidates = [
+        quickSettings._volumeOutput?._control,
+        quickSettings._volumeInput?._control,
+        quickSettings._volume?._control,
+      ].filter(Boolean);
+
+      return candidates[0] || null;
+    }
+
     async setDefaultSrc() {
       try {
         this._audioSourceReady = false;
@@ -548,7 +561,7 @@ export const Visualizer = GObject.registerClass(
         }
         this._defaultSrcId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
           try {
-            this._control = Main.panel.statusArea.quickSettings._volumeInput._control;
+            this._control = this._getAudioControl();
             if (!this._control)
               throw new Error('GNOME audio control is unavailable');
 
@@ -577,48 +590,6 @@ export const Visualizer = GObject.registerClass(
           return GLib.SOURCE_REMOVE;
         });
       });
-    }
-
-    getStreams() {
-      if (this._streamPromise)
-        return this._streamPromise;
-      if (!this._control)
-        return Promise.reject(new Error('Visualizer: audio control is not ready'));
-
-      this._streamPromise = new Promise((resolve, reject) => {
-        let attempts = 0;
-        this._streamReject = reject;
-        this._streamId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
-          try {
-            if (this._control.get_state() === Gvc.MixerControlState.READY) {
-              this._streamId = null;
-              this._streamReject = null;
-              this._streamPromise = null;
-              resolve(this._control.get_streams());
-              return GLib.SOURCE_REMOVE;
-            }
-          } catch (error) {
-            this._streamId = null;
-            this._streamReject = null;
-            this._streamPromise = null;
-            logError(error, 'Visualizer: failed to retrieve audio streams');
-            reject(error);
-            return GLib.SOURCE_REMOVE;
-          }
-
-          attempts++;
-          if (attempts >= 5) {
-            this._streamId = null;
-            this._streamReject = null;
-            this._streamPromise = null;
-            reject(new Error('Visualizer: timed out waiting for audio streams'));
-            return GLib.SOURCE_REMOVE;
-          }
-
-          return GLib.SOURCE_CONTINUE;
-        });
-      });
-      return this._streamPromise;
     }
 
     _resetFreq() {
@@ -678,34 +649,7 @@ export const Visualizer = GObject.registerClass(
       try {
         this._removeMenuTimeout();
         if (!this._menu) {
-          this._menuItems = [];
-          let stream = await this.getStreams();
-          for (let i = 0; i < stream.length; i++) {
-            if (stream[i] instanceof Gvc.MixerSink) {
-              this._menuItems.push(stream[i].get_name() + '.monitor');
-            } else if (stream[i] instanceof Gvc.MixerSource) {
-              this._menuItems.push(stream[i].get_name());
-            }
-          }
-          this._subMenuItem = [];
           this._menu = new PopupMenu.PopupMenu(this, 0.5, St.Side.TOP);
-          let srcDevice = new PopupMenu.PopupSubMenuMenuItem('Change Audio Source');
-          this._menu.addMenuItem(srcDevice);
-          for (let i = 0; i < this._menuItems.length; i++) {
-            let item = new PopupMenu.PopupMenuItem(this._menuItems[i]);
-            item.connect('activate', () => {
-              for (let k = 0; k < this._menuItems.length; k++) {
-                this._subMenuItem[k].setOrnament(this._menuItems[i] == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
-              }
-              this._src.set_property("device", this._menuItems[i]);
-            });
-            srcDevice.menu.addMenuItem(item, i);
-            this._subMenuItem.push(item);
-          }
-          for (let k = 0; k < this._menuItems.length; k++) {
-            this._subMenuItem[k].setOrnament(this._defaultSrc == this._menuItems[k] ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NONE);
-          }
-          this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
           this._menu.addAction("Visualizer Settings", () => {
             this._extension.openPreferences();
           });
@@ -723,14 +667,6 @@ export const Visualizer = GObject.registerClass(
       if (this._defaultSrcId) {
         GLib.Source.remove(this._defaultSrcId);
         this._defaultSrcId = null;
-      }
-      if (this._streamId) {
-        GLib.Source.remove(this._streamId);
-        this._streamId = null;
-      }
-      if (this._streamReject) {
-        this._streamReject(new Error('Visualizer: audio stream request cancelled'));
-        this._streamReject = null;
       }
       if (this._startupTimeoutId) {
         GLib.Source.remove(this._startupTimeoutId);

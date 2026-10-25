@@ -21,7 +21,7 @@ For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.o
 # Original Features
 
 - Drag and drop support
-- Change audio source from the menu (Right/left click on the visualizer to change)
+- ~~Change audio source from the menu (Right/left click on the visualizer to change)~~
 - Change visualizer size
 - Increase or decrease bands
 - Choose how many bands will appear on display

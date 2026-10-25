@@ -46,11 +46,11 @@ class PrefsWindow {
     row.activatable_widget = widget;
   }
 
-  append_expander_row(group, titleEx, title, key, key1) {
+  append_expander_row(group, titleEx, title, key, expandedKey, key1) {
     let expand_row = new Adw.ExpanderRow({
       title: titleEx,
       show_enable_switch: true,
-      expanded: this._settings.get_boolean(key),
+      expanded: this._settings.get_boolean(expandedKey),
       enable_expansion: this._settings.get_boolean(key)
     });
     let row = new Adw.ActionRow({
@@ -58,6 +58,9 @@ class PrefsWindow {
     });
     expand_row.connect("notify::enable-expansion", (widget) => {
       this._settings.set_value(key, new GLib.Variant('b', widget.enable_expansion));
+    });
+    expand_row.connect("notify::expanded", (widget) => {
+      this._settings.set_boolean(expandedKey, widget.expanded);
     });
     row.add_suffix(key1);
     expand_row.add_row(row);
@@ -154,6 +157,7 @@ class PrefsWindow {
         'Glow Effect (experimental)',
         'Glow Color',
         'glow-effect',
+        'glow-color-expanded',
         getColorButton('glow-color', this._settings)
       );
       this.append_row(groupVisual, 'Always On Top', getSwitch('always-on-top', this._settings));
@@ -161,7 +165,7 @@ class PrefsWindow {
       this.append_row(groupVisual, 'Visualizer Width', getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings));
       this.append_row(groupVisual, 'Spects Line Width', getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings));
       this.append_row(groupVisual, 'Change Spects Band to Get', getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings));
-      this.append_expander_row(groupVisual, 'Override Spect Value', 'Set Spects Value', 'spect-over-ride-bool', getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings));
+      this.append_expander_row(groupVisual, 'Override Spect Value', 'Set Spects Value', 'spect-over-ride-bool', 'spect-value-expanded', getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings));
       this.append_row(groupVisual, 'Pick color for Visualiser', getColorButton('visualizer-color', this._settings));
 
       let groupBackup = this.create_group(visualWidget);

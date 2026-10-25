@@ -69,5 +69,13 @@
 			<summary>Glow color</summary>
 			<description>Color used for the visualizer glow</description>
 		</key>
+		<key name="glow-color-expanded" type="b">
+			<default>false</default>
+			<summary>Glow color settings expanded</summary>
+		</key>
+		<key name="spect-value-expanded" type="b">
+			<default>false</default>
+			<summary>Spect value settings expanded</summary>
+		</key>
 	</schema>
 </schemalist>

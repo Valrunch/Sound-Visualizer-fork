@@ -16,6 +16,7 @@ For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.o
 
 <p align="center">
   <img src="assets/visualizer_setting.png" width="49%" alt="Visualizer settings">
+  <img src="assets/audio_setting" width="49%" alt="About page">
   <img src="assets/About.png" width="49%" alt="About page">
 </p>
 

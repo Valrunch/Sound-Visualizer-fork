@@ -1,28 +1,3 @@
-#=============================================================================
-# Makefile for Building, Packaging, and Installing GNOME Shell Extension
-#
-# Targets:
-#   make clean       - Removes the build directory
-#   make all         - Prepares the build without compiling schemas
-#   make test        - Runs the unit tests (needs node) and, if gjs is installed, the GJS tests
-#   make xz          - Creates a .tar.xz archive of the build (schemas not compiled)
-#   make zip         - Creates a .zip archive of the build (schemas not compiled)
-#   make install     - Prepares the build, compiles schemas, and installs the extension
-#   make uninstall   - Uninstalls the extension from the GNOME Shell extensions directory
-#
-# Dependencies:
-#   - Ensure 'jq' is installed for JSON parsing
-#   - Ensure 'glib-compile-schemas' is available for schema compilation
-#
-# Usage:
-#   make [target]
-#
-# Example:
-#   make install
-#=============================================================================
-
-#=============================================================================
-# Ensure jq is installed
 ifneq ($(shell which jq),)
     JQ := jq
 else

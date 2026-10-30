@@ -209,7 +209,7 @@ class PrefsWindow {
       this.switchRow(appearance, 'mirror', 'Symmetric');
       this.choiceRow(appearance, 'visualizer-orientation', 'Orientation',
         [['bottom', 'Bottom'], ['top', 'Top'], ['left', 'Left'], ['right', 'Right']]);
-      const modeRow = this.choiceRow(appearance, 'color-mode', 'Colour',
+      const modeRow = this.choiceRow(appearance, 'color-mode', 'Colour (experimental)',
         [['solid', 'Single colour'], ['gradient', 'Gradient'], ['cover', 'Album cover']]);
       this.colorRow(appearance, 'visualizer-color', 'First colour');
       const color2 = this.colorRow(appearance, 'visualizer-color2', 'Second colour');
@@ -246,7 +246,7 @@ class PrefsWindow {
       this.spinRow(response, 'fps', 'Refresh rate', 10, 60, 5);
       this.spinRow(response, 'smoothing', 'Smoothing', 0, 100, 5);
       this.spinRow(response, 'decay', 'Fall speed', 0, 100, 5);
-      this.choiceRow(response, 'frequency-scale', 'Frequency scale',
+      this.choiceRow(response, 'frequency-scale', 'Frequency scale (experimental)',
         [['linear', 'Linear'], ['log', 'Logarithmic']]);
 
       const detection = this.create_group(audioPage, _('Signal'));

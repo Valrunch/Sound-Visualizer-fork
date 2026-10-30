@@ -56,9 +56,8 @@ More features will be added in the future!
 # Installation
 
 **Option 1: From ZIP**
-1. Download the zip file: https://github.com/Valrunch/Sound-Visualizer-fork/archive/refs/heads/main.zip
-2. Extract the zip file and open the extracted folder in your terminal.
-3. Run `make install`
+1. Download the latest zip file: [v10](https://github.com/Valrunch/Sound-Visualizer-fork/releases/download/10/visualizer@sound.org.zip)
+2. Extract the zip file and paste the extracted folder in gnome extension folder.
 
 **Option 2: From Git**
 ```bash

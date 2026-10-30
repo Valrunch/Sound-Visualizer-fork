@@ -14,7 +14,8 @@ A Sound Visualizer for GNOME Shell based on GStreamer, specifically for Wayland.
 For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.org/extension/5530/circular-widgets/) extension.
 
 
-![demo](assets/visualizer_setting.png) ![demo](assets/About.png)
+![demo](assets/visualizer_setting.png) 
+![demo](assets/About.png)
 
 
 
@@ -36,19 +37,18 @@ For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.o
 
 | Feature | Status |
 |---|---|
-| Import/export config buttons |✅ Available|
-| Visualizer orientation |✅ Available|
-| Automatically hide the visualizer when audio is silent |✅ Available|
-| Pause audio analysis while a fullscreen window is active | 🚧 In progress |
-| Glow effect (experimental), with a customizable color | 🚧 In progress |
-| Bars, filled curve or line styles, and a symmetric (mirror) mode | 🚧 In progress |
-| Single colour, gradient, or colours taken from the album cover | 🚧 In progress |
-| Logarithmic frequency scale | 🚧 In progress |
-| Refresh rate, smoothing, fall speed, sensitivity and silence threshold settings | 🚧 In progress |
-| Pause only when the fullscreen or maximized window is on the visualizer's screen | 🚧 In progress |
-| Capture restarts by itself after an audio error | 🚧 In progress |
+| Import and export settings | ✅ Available |
+| Visualizer orientation | ✅ Available |
+| Hide the visualizer when audio is silent | ✅ Available |
+| Pause audio analysis for fullscreen or maximized windows on the visualizer's screen | ✅ Available |
+| Bars, filled curve, or line style, with an optional symmetric mode | ✅ Available |
+| Single colour, gradient, or album-cover colours | ✅ Available (experimental) |
+| Logarithmic frequency scale | ✅ Available (experimental) |
+| Controls for refresh rate, smoothing, fall speed, sensitivity, and silence threshold | ✅ Available |
+| Customizable glow effect | ✅ Available (experimental) |
+| Retry audio capture automatically after errors | ✅ Available |
 
-More features will be added in the future.
+More features will be added in the future!
 
 # Installation
 

@@ -129,15 +129,15 @@
 		</key>
 		<key name="smoothing" type="i">
 			<range min="0" max="100"/>
-			<default>30</default>
+			<default>60</default>
 			<summary>Smoothing</summary>
-			<description>How gradually the bars rise (0 = instantly)</description>
+			<description>How much rapid movement in the bars is reduced (0 = instant response)</description>
 		</key>
 		<key name="decay" type="i">
 			<range min="0" max="100"/>
 			<default>50</default>
 			<summary>Fall speed</summary>
-			<description>How fast the bars fall (0 = very slowly, 100 = instantly)</description>
+			<description>How quickly the bars fall (0 = very slowly, 100 = instantly)</description>
 		</key>
 		<key name="sensitivity" type="i">
 			<range min="0" max="100"/>

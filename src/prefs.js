@@ -70,6 +70,37 @@ class PrefsWindow {
     return row;
   }
 
+  scaleRow(group, key, title, subtitle, min, max, step) {
+    const scale = new Gtk.Scale({
+      adjustment: new Gtk.Adjustment({
+        lower: min,
+        upper: max,
+        step_increment: step,
+        page_increment: step * 5,
+      }),
+      digits: 0,
+      draw_value: true,
+      hexpand: true,
+      width_request: 180,
+      valign: Gtk.Align.CENTER,
+    });
+    const row = new Adw.ActionRow({title: _(title), subtitle: _(subtitle)});
+    this._watch(key, () => {
+      const value = this._settings.get_int(key);
+      if (scale.get_value() !== value)
+        scale.set_value(value);
+    });
+    scale.connect('value-changed', widget => {
+      const value = Math.round(widget.get_value());
+      if (this._settings.get_int(key) !== value)
+        this._settings.set_int(key, value);
+    });
+    row.add_suffix(scale);
+    row.activatable_widget = scale;
+    this._append(group, row);
+    return row;
+  }
+
   choiceRow(group, key, title, choices) {
     const values = choices.map(c => c[0]);
     const row = new Adw.ComboRow({
@@ -227,31 +258,24 @@ class PrefsWindow {
       this.spinRow(layout, 'visualizer-width', 'Width', 1, 7680, 1);
       this.spinRow(layout, 'total-spects-band', 'Number of bars', 8, 256, 1);
       this.switchRow(layout, 'always-on-top', 'Always on top');
-
-      const backup = this.create_group(visualPage);
-      const backupBox = new Gtk.Box({
-        orientation: Gtk.Orientation.HORIZONTAL,
-        spacing: 12,
-        halign: Gtk.Align.CENTER,
-        margin_top: 6,
-      });
-      backupBox.append(this._createButton('Export…', () => this._exportSettings()));
-      backupBox.append(this._createButton('Import…', () => this._importSettings()));
-      backup.add(backupBox);
     }
 
     const audioPage = this.create_page(_('Audio'), 'audio-volume-high-symbolic');
     {
       const response = this.create_group(audioPage, _('Response'));
       this.spinRow(response, 'fps', 'Refresh rate', 10, 60, 5);
-      this.spinRow(response, 'smoothing', 'Smoothing', 0, 100, 5);
-      this.spinRow(response, 'decay', 'Fall speed', 0, 100, 5);
+      this.scaleRow(response, 'smoothing', 'Smoothing', 'Reduces rapid movement in the bars', 0, 100, 5);
+      this.scaleRow(response, 'decay', 'Fall speed', 'Controls how quickly the bars fall', 0, 100, 5);
       this.choiceRow(response, 'frequency-scale', 'Frequency scale (experimental)',
         [['linear', 'Linear'], ['log', 'Logarithmic']]);
 
-      const detection = this.create_group(audioPage, _('Signal'));
+      const detection = new Adw.ExpanderRow({
+        title: _('Advanced signal settings'),
+        expanded: false,
+      });
       this.spinRow(detection, 'sensitivity', 'Sensitivity', 0, 100, 5);
       this.spinRow(detection, 'silence-threshold', 'Silence threshold', -80, -40, 1);
+      response.add(detection);
     }
 
     let aboutPage = this.create_page('About', 'emblem-important-symbolic'); {
@@ -305,6 +329,16 @@ class PrefsWindow {
         const donateRow = this._createLinkRow('Donate to raihan1999v via Buy Me a Coffee', BMC_LINK);
         infoGroup.add(donateRow);
         groupAbout.add(infoGroup);
+
+        const backupBox = new Gtk.Box({
+          orientation: Gtk.Orientation.HORIZONTAL,
+          spacing: 12,
+          halign: Gtk.Align.CENTER,
+          margin_top: 6,
+        });
+        backupBox.append(this._createButton('Export…', () => this._exportSettings()));
+        backupBox.append(this._createButton('Import…', () => this._importSettings()));
+        groupAbout.add(backupBox);
     }
   }
 }

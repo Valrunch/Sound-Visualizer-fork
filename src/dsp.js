@@ -84,14 +84,15 @@ export class LevelSmoother {
   }
 
   update(targets, dt, smoothing, decay) {
-    const s = clamp(smoothing, 0, 100) / 100 * 0.9;
-    const k = Math.pow(s, dt * 30);
+    const smoothness = clamp(smoothing, 0, 100) / 100;
+    const attackSeconds = 0.02 + smoothness * 0.18;
+    const attack = smoothness === 0 ? 1 : 1 - Math.exp(-dt / attackSeconds);
     const fall = FALL_MIN * Math.pow(FALL_MAX / FALL_MIN, clamp(decay, 0, 100) / 100) * dt;
     const lv = this.levels;
     for (let i = 0; i < lv.length; i++) {
       const t = targets[i];
       const v = lv[i];
-      lv[i] = t >= v ? t + (v - t) * k : Math.max(t, v - fall);
+      lv[i] = t >= v ? v + (t - v) * attack : Math.max(t, v - fall);
     }
     return lv;
   }

@@ -1,28 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
 	<schema id="org.gnome.shell.extensions.visualizer" path="/org/gnome/shell/extensions/visualizer/">
-		<!-- See also: https://docs.gtk.org/glib/gvariant-format-strings.html -->
 		<key type="(ii)" name="visualizer-location">
 			<default>(400, 100)</default>
 			<summary>Location of visualizer</summary>
 			<description>Location of visualizer</description>
 		</key>
-		<!--Visualizer-->
 		<key name="visualizer-height" type="i">
+			<range min="1" max="1000"/>
 			<default>150</default>
 			<summary>Vertical Size of DrawingArea</summary>
 		</key>
 		<key name="visualizer-width" type="i">
+			<range min="1" max="7680"/>
 			<default>720</default>
 			<summary>Horizontal Size of DrawingArea</summary>
 		</key>
 		<key name="spects-line-width" type="i">
+			<range min="1" max="40"/>
 			<default>5</default>
-			<summary>All Spect Bands width</summary>
+			<summary>Bar / line thickness</summary>
 		</key>
 		<key name="total-spects-band" type="i">
+			<range min="8" max="256"/>
 			<default>64</default>
-			<summary>Count Total Spects Bands</summary>
+			<summary>Number of bars</summary>
+			<description>Total number of bars drawn. In symmetric mode every frequency band is drawn twice.</description>
 		</key>
 		<key name="visualizer-orientation" type="s">
 			<choices>
@@ -37,13 +40,13 @@
 		</key>
 		<key type="b" name="spect-over-ride-bool">
 			<default>false</default>
-			<summary>Override Spects Bands Boolean</summary>
-			<description>Override Spects Bands Boolean</description>
+			<summary>Deprecated: override the number of bands</summary>
+			<description>Deprecated. Migrated to total-spects-band at startup.</description>
 		</key>
 		<key type="i" name="spect-over-ride">
 			<default>64</default>
-			<summary>Override Spects Bands</summary>
-			<description>Override Spects Bands</description>
+			<summary>Deprecated: overridden number of bands</summary>
+			<description>Deprecated. Migrated to total-spects-band at startup.</description>
 		</key>
 		<key type="b" name="always-on-top">
 			<default>false</default>
@@ -57,7 +60,8 @@
 		</key>
 		<key name="fill-visualizer" type="b">
 			<default>false</default>
-			<summary>Fill Visualizer with color</summary>
+			<summary>Deprecated: fill the visualizer</summary>
+			<description>Deprecated. Migrated to visualizer-style (area) at startup.</description>
 		</key>
 		<key name="glow-effect" type="b">
 			<default>false</default>
@@ -75,7 +79,77 @@
 		</key>
 		<key name="spect-value-expanded" type="b">
 			<default>false</default>
-			<summary>Spect value settings expanded</summary>
+			<summary>Deprecated: spect value settings expanded</summary>
+			<description>Deprecated. The override row no longer exists.</description>
+		</key>
+		<key name="visualizer-style" type="s">
+			<choices>
+				<choice value='bars'/>
+				<choice value='area'/>
+				<choice value='line'/>
+			</choices>
+			<default>'bars'</default>
+			<summary>Visualizer style</summary>
+			<description>Bars, filled curve or line</description>
+		</key>
+		<key name="mirror" type="b">
+			<default>true</default>
+			<summary>Symmetric mode</summary>
+			<description>Mirror the spectrum around the centre, bass in the middle</description>
+		</key>
+		<key name="color-mode" type="s">
+			<choices>
+				<choice value='solid'/>
+				<choice value='gradient'/>
+				<choice value='cover'/>
+			</choices>
+			<default>'solid'</default>
+			<summary>Colour mode</summary>
+			<description>One colour, a gradient between two colours, or colours taken from the album cover of the playing track</description>
+		</key>
+		<key name="visualizer-color2" type="s">
+			<default>"rgb(77,163,255)"</default>
+			<summary>Second colour</summary>
+			<description>End of the gradient (also used when no album cover is available)</description>
+		</key>
+		<key name="frequency-scale" type="s">
+			<choices>
+				<choice value='linear'/>
+				<choice value='log'/>
+			</choices>
+			<default>'linear'</default>
+			<summary>Frequency scale</summary>
+			<description>Linear, or logarithmic (closer to how we hear, more room for the bass)</description>
+		</key>
+		<key name="fps" type="i">
+			<range min="10" max="60"/>
+			<default>30</default>
+			<summary>Refresh rate</summary>
+			<description>Updates per second while the visualizer is visible</description>
+		</key>
+		<key name="smoothing" type="i">
+			<range min="0" max="100"/>
+			<default>30</default>
+			<summary>Smoothing</summary>
+			<description>How gradually the bars rise (0 = instantly)</description>
+		</key>
+		<key name="decay" type="i">
+			<range min="0" max="100"/>
+			<default>50</default>
+			<summary>Fall speed</summary>
+			<description>How fast the bars fall (0 = very slowly, 100 = instantly)</description>
+		</key>
+		<key name="sensitivity" type="i">
+			<range min="0" max="100"/>
+			<default>50</default>
+			<summary>Sensitivity</summary>
+			<description>Gain applied to the signal (50 = neutral)</description>
+		</key>
+		<key name="silence-threshold" type="i">
+			<range min="-80" max="-40"/>
+			<default>-70</default>
+			<summary>Silence threshold</summary>
+			<description>Level in dB under which the audio is considered silent and the visualizer hides</description>
 		</key>
 	</schema>
 </schemalist>

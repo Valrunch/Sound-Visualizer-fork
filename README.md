@@ -41,6 +41,12 @@ For desktop widgets, I'm using the [Circular Widgets](https://extensions.gnome.o
 | Automatically hide the visualizer when audio is silent |✅ Available|
 | Pause audio analysis while a fullscreen window is active | 🚧 In progress |
 | Glow effect (experimental), with a customizable color | 🚧 In progress |
+| Bars, filled curve or line styles, and a symmetric (mirror) mode | 🚧 In progress |
+| Single colour, gradient, or colours taken from the album cover | 🚧 In progress |
+| Logarithmic frequency scale | 🚧 In progress |
+| Refresh rate, smoothing, fall speed, sensitivity and silence threshold settings | 🚧 In progress |
+| Pause only when the fullscreen or maximized window is on the visualizer's screen | 🚧 In progress |
+| Capture restarts by itself after an audio error | 🚧 In progress |
 
 More features will be added in the future.
 

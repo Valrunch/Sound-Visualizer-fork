@@ -1,15 +1,22 @@
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
 import Gdk from 'gi://Gdk';
-import GLib from 'gi://GLib';
 import Adw from 'gi://Adw';
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {serializeSettings, applySettings} from './settingsio.js';
 
 class PrefsWindow {
   constructor(window, extension) {
     this._window = window;
     this._metadata = extension.metadata;
     this._settings = extension.getSettings();
+    this._handlerIds = [];
+    window.connect('close-request', () => {
+      for (const id of this._handlerIds)
+        this._settings.disconnect(id);
+      this._handlerIds = [];
+      return false;
+    });
   }
 
   create_page(title, icon) {
@@ -21,51 +28,97 @@ class PrefsWindow {
     return page;
   }
 
-  // create a new Adw.PreferencesGroup and add it to a prefsPage
   create_group(page, title) {
-    let group;
-    if (title !== undefined) {
-      group = new Adw.PreferencesGroup({
-        title: title,
-        //margin_top: 5,
-        //margin_bottom: 5,
-      });
-    } else {
-      group = new Adw.PreferencesGroup();
-    }
+    const group = new Adw.PreferencesGroup();
+    if (title !== undefined)
+      group.title = title;
     page.add(group);
     return group;
   }
 
-  append_row(group, title, widget) {
-    let row = new Adw.ActionRow({
-      title: title,
-    });
-    group.add(row);
-    row.add_suffix(widget);
-    row.activatable_widget = widget;
+  _append(container, row) {
+    if (container instanceof Adw.ExpanderRow)
+      container.add_row(row);
+    else
+      container.add(row);
   }
 
-  append_expander_row(group, titleEx, title, key, expandedKey, key1) {
-    let expand_row = new Adw.ExpanderRow({
-      title: titleEx,
+  _watch(key, callback) {
+    this._handlerIds.push(this._settings.connect(`changed::${key}`, callback));
+    callback();
+  }
+
+  switchRow(group, key, title) {
+    const row = new Adw.SwitchRow({title: _(title)});
+    this._settings.bind(key, row, 'active', Gio.SettingsBindFlags.DEFAULT);
+    this._append(group, row);
+    return row;
+  }
+
+  spinRow(group, key, title, min, max, step) {
+    const row = new Adw.SpinRow({
+      title: _(title),
+      adjustment: new Gtk.Adjustment({
+        lower: min,
+        upper: max,
+        step_increment: step,
+        page_increment: step * 5,
+      }),
+    });
+    this._settings.bind(key, row, 'value', Gio.SettingsBindFlags.DEFAULT);
+    this._append(group, row);
+    return row;
+  }
+
+  choiceRow(group, key, title, choices) {
+    const values = choices.map(c => c[0]);
+    const row = new Adw.ComboRow({
+      title: _(title),
+      model: Gtk.StringList.new(choices.map(c => _(c[1]))),
+    });
+    this._watch(key, () => {
+      const index = values.indexOf(this._settings.get_string(key));
+      if (index >= 0 && row.selected !== index)
+        row.selected = index;
+    });
+    row.connect('notify::selected', () => {
+      const value = values[row.selected];
+      if (value !== undefined && this._settings.get_string(key) !== value)
+        this._settings.set_string(key, value);
+    });
+    this._append(group, row);
+    return row;
+  }
+
+  colorRow(group, key, title) {
+    const button = new Gtk.ColorButton({use_alpha: true, valign: Gtk.Align.CENTER});
+    const row = new Adw.ActionRow({title: _(title)});
+    this._watch(key, () => {
+      const rgba = new Gdk.RGBA();
+      if (rgba.parse(this._settings.get_string(key)))
+        button.rgba = rgba;
+    });
+    button.connect('color-set', widget => {
+      this._settings.set_string(key, widget.get_rgba().to_string());
+    });
+    row.add_suffix(button);
+    row.activatable_widget = button;
+    this._append(group, row);
+    return row;
+  }
+
+  glowRow(group) {
+    const expander = new Adw.ExpanderRow({
+      title: _('Glow (experimental)'),
       show_enable_switch: true,
-      expanded: this._settings.get_boolean(expandedKey),
-      enable_expansion: this._settings.get_boolean(key)
+      expanded: this._settings.get_boolean('glow-color-expanded'),
     });
-    let row = new Adw.ActionRow({
-      title: title,
-    });
-    expand_row.connect("notify::enable-expansion", (widget) => {
-      this._settings.set_value(key, new GLib.Variant('b', widget.enable_expansion));
-    });
-    expand_row.connect("notify::expanded", (widget) => {
-      this._settings.set_boolean(expandedKey, widget.expanded);
-    });
-    row.add_suffix(key1);
-    expand_row.add_row(row);
-    group.add(expand_row);
-  };
+    this._settings.bind('glow-effect', expander, 'enable-expansion', Gio.SettingsBindFlags.DEFAULT);
+    this._settings.bind('glow-color-expanded', expander, 'expanded', Gio.SettingsBindFlags.DEFAULT);
+    this.colorRow(expander, 'glow-color', 'Glow colour');
+    group.add(expander);
+    return expander;
+  }
 
   _createLinkRow(title, uri) {
     const image = new Gtk.Image({
@@ -90,85 +143,92 @@ class PrefsWindow {
     return button;
   }
 
+  _toast(message) {
+    this._window.add_toast(new Adw.Toast({title: message}));
+  }
+
   _exportSettings() {
-    const keys = this._settings.settings_schema.list_keys();
-    const data = {};
-    for (const key of keys) {
-      data[key] = this._settings.get_value(key).print(true);
-    }
-    const chooser = new Gtk.FileChooserNative({
+    const dialog = new Gtk.FileDialog({
       title: _('Export Visualizer Settings'),
-      action: Gtk.FileChooserAction.SAVE,
-      transient_for: this._window,
-      accept_label: _('Export'),
+      initial_name: 'visualizer-settings.json',
+      modal: true,
     });
-    chooser.set_current_name('visualizer-settings.json');
-    chooser.connect('response', (dlg, response) => {
-      if (response === Gtk.ResponseType.ACCEPT) {
-        try {
-          const bytes = new TextEncoder().encode(JSON.stringify(data, null, 2));
-          dlg.get_file().replace_contents(bytes, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
-        } catch (e) {
+    this._dialog = dialog;
+    dialog.save(this._window, null, (dlg, res) => {
+      this._dialog = null;
+      try {
+        const file = dlg.save_finish(res);
+        const bytes = new TextEncoder().encode(serializeSettings(this._settings));
+        file.replace_contents(bytes, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+        this._toast(_('Settings exported'));
+      } catch (e) {
+        if (!e.matches?.(Gtk.DialogError, Gtk.DialogError.DISMISSED) &&
+            !e.matches?.(Gtk.DialogError, Gtk.DialogError.CANCELLED)) {
           logError(e, 'Visualizer: export failed');
+          this._toast(_('Export failed'));
         }
       }
-      dlg.destroy();
     });
-    chooser.show();
   }
 
   _importSettings() {
-    const chooser = new Gtk.FileChooserNative({
+    const dialog = new Gtk.FileDialog({
       title: _('Import Visualizer Settings'),
-      action: Gtk.FileChooserAction.OPEN,
-      transient_for: this._window,
-      accept_label: _('Import'),
+      modal: true,
     });
-    chooser.connect('response', (dlg, response) => {
-      if (response === Gtk.ResponseType.ACCEPT) {
-        try {
-          const [ok, contents] = dlg.get_file().load_contents(null);
-          if (ok) {
-            const data = JSON.parse(new TextDecoder().decode(contents));
-            for (const [key, value] of Object.entries(data)) {
-              try {
-                this._settings.set_value(key, GLib.Variant.parse(null, value, null, null));
-              } catch (e) {
-                logError(e, `Visualizer: skipping invalid key "${key}"`);
-              }
-            }
-          }
-        } catch (e) {
+    this._dialog = dialog;
+    dialog.open(this._window, null, (dlg, res) => {
+      this._dialog = null;
+      try {
+        const file = dlg.open_finish(res);
+        const [ok, contents] = file.load_contents(null);
+        if (!ok)
+          throw new Error('The file could not be read');
+        const {imported, skipped} = applySettings(this._settings, new TextDecoder().decode(contents));
+        if (skipped.length > 0)
+          log(`Visualizer: ignored settings: ${skipped.join(', ')}`);
+        this._toast(skipped.length > 0
+          ? `${_('Settings imported')}: ${imported}, ${_('ignored')}: ${skipped.length}`
+          : `${_('Settings imported')}: ${imported}`);
+      } catch (e) {
+        if (!e.matches?.(Gtk.DialogError, Gtk.DialogError.DISMISSED) &&
+            !e.matches?.(Gtk.DialogError, Gtk.DialogError.CANCELLED)) {
           logError(e, 'Visualizer: import failed');
+          this._toast(e.message);
         }
       }
-      dlg.destroy();
     });
-    chooser.show();
   }
 
   fillPrefsWindow() {
-    let visualWidget = this.create_page('Visualizer', 'emblem-system-symbolic'); {
-      let groupVisual = this.create_group(visualWidget);
-      this.append_row(groupVisual, 'Visualizer Orientation', getOrientationDropdown(this._settings));
-      this.append_row(groupVisual, 'Fill the Visualizer', getSwitch('fill-visualizer', this._settings));
-      this.append_expander_row(
-        groupVisual,
-        'Glow Effect (experimental)',
-        'Glow Color',
-        'glow-effect',
-        'glow-color-expanded',
-        getColorButton('glow-color', this._settings)
-      );
-      this.append_row(groupVisual, 'Always On Top', getSwitch('always-on-top', this._settings));
-      this.append_row(groupVisual, 'Visualizer Height', getSpinButton(false, 'visualizer-height', 1, 200, 1, this._settings));
-      this.append_row(groupVisual, 'Visualizer Width', getSpinButton(false, 'visualizer-width', 1, 1920, 1, this._settings));
-      this.append_row(groupVisual, 'Spects Line Width', getSpinButton(false, 'spects-line-width', 1, 20, 1, this._settings));
-      this.append_row(groupVisual, 'Change Spects Band to Get', getSpinButton(false, 'total-spects-band', 1, 256, 1, this._settings));
-      this.append_expander_row(groupVisual, 'Override Spect Value', 'Set Spects Value', 'spect-over-ride-bool', 'spect-value-expanded', getSpinButton(false, 'spect-over-ride', 1, 256, 1, this._settings));
-      this.append_row(groupVisual, 'Pick color for Visualiser', getColorButton('visualizer-color', this._settings));
+    const visualPage = this.create_page(_('Visualizer'), 'emblem-system-symbolic');
+    {
+      const appearance = this.create_group(visualPage, _('Appearance'));
+      this.choiceRow(appearance, 'visualizer-style', 'Style',
+        [['bars', 'Bars'], ['area', 'Filled curve'], ['line', 'Line']]);
+      this.switchRow(appearance, 'mirror', 'Symmetric');
+      this.choiceRow(appearance, 'visualizer-orientation', 'Orientation',
+        [['bottom', 'Bottom'], ['top', 'Top'], ['left', 'Left'], ['right', 'Right']]);
+      const modeRow = this.choiceRow(appearance, 'color-mode', 'Colour',
+        [['solid', 'Single colour'], ['gradient', 'Gradient'], ['cover', 'Album cover']]);
+      this.colorRow(appearance, 'visualizer-color', 'First colour');
+      const color2 = this.colorRow(appearance, 'visualizer-color2', 'Second colour');
+      const thickness = this.spinRow(appearance, 'spects-line-width', 'Thickness', 1, 40, 1);
+      this.glowRow(appearance);
+      this._watch('color-mode', () => {
+        color2.visible = this._settings.get_string('color-mode') !== 'solid';
+      });
+      this._watch('visualizer-style', () => {
+        thickness.visible = this._settings.get_string('visualizer-style') !== 'area';
+      });
 
-      let groupBackup = this.create_group(visualWidget);
+      const layout = this.create_group(visualPage, _('Size and position'));
+      this.spinRow(layout, 'visualizer-height', 'Height', 1, 1000, 1);
+      this.spinRow(layout, 'visualizer-width', 'Width', 1, 7680, 1);
+      this.spinRow(layout, 'total-spects-band', 'Number of bars', 8, 256, 1);
+      this.switchRow(layout, 'always-on-top', 'Always on top');
+
+      const backup = this.create_group(visualPage);
       const backupBox = new Gtk.Box({
         orientation: Gtk.Orientation.HORIZONTAL,
         spacing: 12,
@@ -177,7 +237,21 @@ class PrefsWindow {
       });
       backupBox.append(this._createButton('Export…', () => this._exportSettings()));
       backupBox.append(this._createButton('Import…', () => this._importSettings()));
-      groupBackup.add(backupBox);
+      backup.add(backupBox);
+    }
+
+    const audioPage = this.create_page(_('Audio'), 'audio-volume-high-symbolic');
+    {
+      const response = this.create_group(audioPage, _('Response'));
+      this.spinRow(response, 'fps', 'Refresh rate', 10, 60, 5);
+      this.spinRow(response, 'smoothing', 'Smoothing', 0, 100, 5);
+      this.spinRow(response, 'decay', 'Fall speed', 0, 100, 5);
+      this.choiceRow(response, 'frequency-scale', 'Frequency scale',
+        [['linear', 'Linear'], ['log', 'Logarithmic']]);
+
+      const detection = this.create_group(audioPage, _('Signal'));
+      this.spinRow(detection, 'sensitivity', 'Sensitivity', 0, 100, 5);
+      this.spinRow(detection, 'silence-threshold', 'Silence threshold', -80, -40, 1);
     }
 
     let aboutPage = this.create_page('About', 'emblem-important-symbolic'); {
@@ -216,7 +290,6 @@ class PrefsWindow {
         headerGroup.add(projectHeaderBox);
         groupAbout.add(headerGroup);
 
-        // Extension Info and Links Group------------------------------------------------
         const infoGroup = new Adw.PreferencesGroup();
 
         const projectVersionRow = new Adw.ActionRow({
@@ -226,51 +299,14 @@ class PrefsWindow {
             label: this._metadata.version.toString(),
         }));
         infoGroup.add(projectVersionRow);
-        const gitlabRow = this._createLinkRow(_('Sound Visualizer fork Github'), this._metadata.url);
-        infoGroup.add(gitlabRow);
+        const githubRow = this._createLinkRow('Sound Visualizer fork Github', this._metadata.url);
+        infoGroup.add(githubRow);
 
-        const donateRow = this._createLinkRow(_('Donate to raihan1999v via Buy Me a Coffee'), BMC_LINK);
+        const donateRow = this._createLinkRow('Donate to raihan1999v via Buy Me a Coffee', BMC_LINK);
         infoGroup.add(donateRow);
         groupAbout.add(infoGroup);
     }
   }
-}
-
-function getSwitch(key, settings) {
-    let button = new Gtk.Switch({ valign: Gtk.Align.CENTER });
-    settings.bind(key, button, 'active', Gio.SettingsBindFlags.DEFAULT);
-    return button
-}
-
-function getSpinButton(is_double, key, min, max, step, settings) {
-    let spin = Gtk.SpinButton.new_with_range(min, max, step);
-    settings.bind(key, spin, 'value', Gio.SettingsBindFlags.DEFAULT);
-    return spin;
-}
-
-function getOrientationDropdown(settings) {
-    const orientations = ['bottom', 'top', 'left', 'right'];
-    const dropdown = Gtk.DropDown.new_from_strings(['Bottom', 'Top', 'Left', 'Right']);
-    dropdown.valign = Gtk.Align.CENTER;
-    dropdown.selected = orientations.indexOf(settings.get_string('visualizer-orientation'));
-    dropdown.connect('notify::selected', () => {
-        settings.set_string('visualizer-orientation', orientations[dropdown.selected]);
-    });
-    return dropdown;
-}
-
-function getColorButton(key, settings) {
-    let rgba = new Gdk.RGBA();
-    rgba.parse(settings.get_string(key));
-    let colorButton = new Gtk.ColorButton({
-        rgba,
-        use_alpha: true,
-        valign: Gtk.Align.CENTER
-    });
-    colorButton.connect('color-set', (widget) => {
-        settings.set_string(key, widget.get_rgba().to_string());
-    });
-    return colorButton;
 }
 
 export default class VisualiserPreferences extends ExtensionPreferences {

@@ -4,6 +4,7 @@
 # Targets:
 #   make clean       - Removes the build directory
 #   make all         - Prepares the build without compiling schemas
+#   make test        - Runs the unit tests (needs node) and, if gjs is installed, the GJS tests
 #   make xz          - Creates a .tar.xz archive of the build (schemas not compiled)
 #   make zip         - Creates a .zip archive of the build (schemas not compiled)
 #   make install     - Prepares the build, compiles schemas, and installs the extension
@@ -48,7 +49,7 @@ INSTALL_PATH := $(HOME)/.local/share/gnome-shell/extensions
 #=============================================================================
 
 # Declare phony targets to prevent conflicts with files of the same name
-.PHONY: clean all prepare_copy compile_schemas zip xz install uninstall
+.PHONY: clean all prepare_copy compile_schemas zip xz install uninstall test
 
 # Default target
 default: all
@@ -60,8 +61,10 @@ clean:
 
 # Prepare the build by copying source files
 prepare_copy:
+	@rm -rf $(BUILDDIR)/$(UUID)
 	@mkdir -p $(BUILDDIR)/$(UUID)
 	@cp -r $(SRCDIR)/* $(BUILDDIR)/$(UUID)
+	@rm -f $(BUILDDIR)/$(UUID)/schemas/gschemas.compiled
 	@echo "Source files copied to $(BUILDDIR)/$(UUID)."
 
 # Compile schemas (always run during install)
@@ -81,7 +84,7 @@ all: prepare_copy
 xz: all
 	@echo "Creating .tar.xz archive..."
 	(cd $(BUILDDIR)/$(UUID); \
-         tar -czvf $(ABS_BUILDDIR)/$(UUID).tar.xz $(FILES:%=%); \
+         tar -cJvf $(ABS_BUILDDIR)/$(UUID).tar.xz $(FILES:%=%); \
         );
 	@echo "Archive $(ABS_BUILDDIR)/$(UUID).tar.xz created successfully."
 

@@ -77,4 +77,3 @@ This fork was created to update the codebase, add a few new features, ensure ful
 This extension is also inspired by [Glava](https://github.com/jarcode-foss/glava).
 
 Licensed under the [GPL-3.0 License](LICENSE) (same as the original project).
-

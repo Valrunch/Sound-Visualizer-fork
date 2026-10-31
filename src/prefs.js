@@ -240,7 +240,7 @@ class PrefsWindow {
       this.switchRow(appearance, 'mirror', 'Symmetric');
       this.choiceRow(appearance, 'visualizer-orientation', 'Orientation',
         [['bottom', 'Bottom'], ['top', 'Top'], ['left', 'Left'], ['right', 'Right']]);
-      const modeRow = this.choiceRow(appearance, 'color-mode', 'Colour (experimental)',
+      this.choiceRow(appearance, 'color-mode', 'Colour (experimental)',
         [['solid', 'Single colour'], ['gradient', 'Gradient'], ['cover', 'Album cover']]);
       this.colorRow(appearance, 'visualizer-color', 'First colour');
       const color2 = this.colorRow(appearance, 'visualizer-color2', 'Second colour');

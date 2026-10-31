@@ -1,5 +1,4 @@
 export const ANALYSIS_BANDS = 512;
-export const NYQUIST_HZ = 24000;
 export const MIN_HZ = 30;
 export const MAX_HZ = 16000;
 export const DB_FLOOR = -80;
@@ -15,28 +14,29 @@ export const intervalNs = fps => Math.round(1e9 / clamp(fps, 5, 120));
 
 export const distinctBands = (totalBars, mirror) =>
   Math.max(1, mirror ? Math.ceil(totalBars / 2) : Math.floor(totalBars));
-export const drawnBars = (distinct, mirror) => (mirror ? distinct * 2 : distinct);
 
-export function buildBandMap(distinct, scale) {
-  const binHz = NYQUIST_HZ / ANALYSIS_BANDS;
+export function buildBandMap(distinct, scale, sampleRate) {
+  const nyquist = sampleRate / 2;
+  const maxHz = Math.min(MAX_HZ, nyquist);
+  const binHz = nyquist / ANALYSIS_BANDS;
   const lo = new Float64Array(distinct);
   const hi = new Float64Array(distinct);
   const tilt = new Float64Array(distinct);
   for (let d = 0; d < distinct; d++) {
     let f0, f1;
     if (scale === 'log') {
-      f0 = MIN_HZ * Math.pow(MAX_HZ / MIN_HZ, d / distinct);
-      f1 = MIN_HZ * Math.pow(MAX_HZ / MIN_HZ, (d + 1) / distinct);
+      f0 = MIN_HZ * Math.pow(maxHz / MIN_HZ, d / distinct);
+      f1 = MIN_HZ * Math.pow(maxHz / MIN_HZ, (d + 1) / distinct);
       tilt[d] = TILT_DB_PER_OCTAVE * Math.log2(Math.sqrt(f0 * f1) / 1000);
     } else {
-      f0 = (d / distinct) * MAX_HZ;
-      f1 = ((d + 1) / distinct) * MAX_HZ;
+      f0 = (d / distinct) * maxHz;
+      f1 = ((d + 1) / distinct) * maxHz;
     }
     lo[d] = f0 / binHz;
     hi[d] = f1 / binHz;
   }
   const maxBin = Math.min(ANALYSIS_BANDS - 1, Math.ceil(hi[distinct - 1]));
-  return {distinct, scale, lo, hi, tilt, maxBin};
+  return {distinct, scale, sampleRate, lo, hi, tilt, maxBin};
 }
 
 export function mapSpectrum(db, map, out) {
@@ -100,9 +100,10 @@ export class LevelSmoother {
 
 export function mirrorLevels(levels, out) {
   const n = levels.length;
+  const total = out.length;
   for (let i = 0; i < n; i++) {
-    out[i] = levels[n - 1 - i];
-    out[n + i] = levels[i];
+    out[n - 1 - i] = levels[i];
+    out[total - n + i] = levels[i];
   }
   return out;
 }

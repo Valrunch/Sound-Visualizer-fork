@@ -29,6 +29,15 @@ export const Visualizer = GObject.registerClass(
         can_focus: true
       });
       this._extension = extension;
+      try {
+        this._build();
+      } catch (e) {
+        this.destroy();
+        throw e;
+      }
+    }
+
+    _build() {
       this._settings = this._extension.getSettings();
       this._migrateSettings();
       this._control = null;
@@ -40,6 +49,7 @@ export const Visualizer = GObject.registerClass(
       this._maximizedWindowBlocked = false;
       this._pipelineFailed = false;
       this._audioSourceReady = false;
+      this._sampleRate = 0;
       this._sourceToken = 0;
       this._retryCount = 0;
       this._cover = null;
@@ -120,13 +130,17 @@ export const Visualizer = GObject.registerClass(
       const s = this._settings;
       const mirror = s.get_boolean('mirror');
       const scale = s.get_string('frequency-scale');
-      const distinct = Dsp.distinctBands(s.get_int('total-spects-band'), mirror);
-      if (!this._map || this._map.distinct !== distinct || this._map.scale !== scale) {
-        this._map = Dsp.buildBandMap(distinct, scale);
+      const total = s.get_int('total-spects-band');
+      const distinct = Dsp.distinctBands(total, mirror);
+      if (!this._smoother || this._distinct !== distinct || this._scale !== scale ||
+          this._mirrorBuffer.length !== total) {
+        this._distinct = distinct;
+        this._scale = scale;
+        this._map = null;
         this._rawDb = new Float64Array(distinct);
         this._targets = new Float64Array(distinct);
         this._smoother = new Dsp.LevelSmoother(distinct);
-        this._mirrorBuffer = new Float64Array(distinct * 2);
+        this._mirrorBuffer = new Float64Array(total);
         this._bars = [];
       }
       this._mirror = mirror;
@@ -252,6 +266,8 @@ export const Visualizer = GObject.registerClass(
     }
 
     _refreshBlockedState() {
+      if (Main.layoutManager.monitors.length === 0)
+        return;
       const monitor = this._monitorIndex();
       const fullscreen = global.display.get_monitor_in_fullscreen(monitor);
       const maximized = !fullscreen && !this._alwaysOnTop && this._hasMaximizedWindowOn(monitor);
@@ -290,6 +306,8 @@ export const Visualizer = GObject.registerClass(
       const target = run ? Gst.State.PLAYING : Gst.State.NULL;
       if (target !== this._pipelineTarget) {
         this._pipelineTarget = target;
+        if (target === Gst.State.NULL)
+          this._sampleRate = 0;
         this._pipeline.set_state(target);
       }
       this._applyInterval();
@@ -379,6 +397,7 @@ export const Visualizer = GObject.registerClass(
       this._spectrum = null;
       this._pipelineTarget = null;
       this._audioSourceReady = false;
+      this._sampleRate = 0;
       this._currentSource = null;
       this._sourceToken++;
     }
@@ -408,10 +427,24 @@ export const Visualizer = GObject.registerClass(
       });
     }
 
+    _readSampleRate() {
+      const caps = this._spectrum.get_static_pad('sink').get_current_caps();
+      if (!caps || caps.get_size() === 0)
+        return 0;
+      const [ok, rate] = caps.get_structure(0).get_int('rate');
+      return ok && rate > 0 ? rate : 0;
+    }
+
     onMessage(bus, msg) {
       const struct = msg.get_structure();
       if (!struct || struct.get_name() !== 'spectrum')
         return;
+      if (!this._sampleRate)
+        this._sampleRate = this._readSampleRate();
+      if (!this._sampleRate)
+        return;
+      if (!this._map || this._map.sampleRate !== this._sampleRate)
+        this._map = Dsp.buildBandMap(this._distinct, this._scale, this._sampleRate);
       const [ok, magnitudes] = struct.get_list("magnitude");
       if (!ok || !magnitudes)
         return;
@@ -596,7 +629,7 @@ export const Visualizer = GObject.registerClass(
         return;
       let [x, y] = this._settings.get_value('visualizer-location').deep_unpack();
       this.set_position(x, y);
-      if (!this.get_parent())
+      if (!this.get_parent() || Main.layoutManager.monitors.length === 0)
         return;
       if (!this._isOnScreen(x, y)) {
         [x, y] = this._keepOnScreen(x, y);

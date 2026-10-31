@@ -59,7 +59,7 @@ More features will be added in the future!
 1. Download the latest zip file: [v10](https://github.com/Valrunch/Sound-Visualizer-fork/releases/download/10/visualizer@sound.org.zip)
 2. Extract the zip file and paste the extracted folder in gnome extension folder.
 
-**Option 2: From Git**
+**Option 2: From Git (May not be working)**
 ```bash
 git clone https://github.com/Valrunch/Sound-Visualizer-fork.git
 cd Sound-Visualizer-fork

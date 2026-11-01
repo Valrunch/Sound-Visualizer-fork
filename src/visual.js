@@ -12,13 +12,14 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Audio from './audio.js';
 import {CoverWatcher} from './cover.js';
-import {drawVisualizer} from './draw.js';
+import {drawVisualizer, hitBoxes} from './draw.js';
 import * as Dsp from './dsp.js';
 
 const SILENCE_DELAY_MS = 1500;
 const IDLE_INTERVAL_NS = 250 * 1000000;
 const RETRY_DELAYS_S = [2, 5, 10, 30];
 const BLOCKED_POLL_S = 1;
+const MIN_VISIBLE_PX = 32;
 
 export const Visualizer = GObject.registerClass(
   class musicVisualizer extends St.BoxLayout {
@@ -54,6 +55,7 @@ export const Visualizer = GObject.registerClass(
       this._retryCount = 0;
       this._cover = null;
       this._bars = [];
+      this._pickBox = new Clutter.ActorBox();
       this.visible = false;
       this._actor = new St.DrawingArea();
       this.add_child(this._actor);
@@ -595,27 +597,30 @@ export const Visualizer = GObject.registerClass(
       return this._monitorIndexForRect(this._getRectForCoords(this.x, this.y));
     }
 
-    _getWorkAreaForRect(rect) {
-      return Main.layoutManager.getWorkAreaForMonitor(this._monitorIndexForRect(rect));
+    _positionLimits(x, y) {
+      const rect = this._getRectForCoords(x, y);
+      const monitor = Main.layoutManager.monitors[this._monitorIndexForRect(rect)];
+      const visibleWidth = Math.min(MIN_VISIBLE_PX, rect.width);
+      const visibleHeight = Math.min(MIN_VISIBLE_PX, rect.height);
+      return {
+        minX: monitor.x + visibleWidth - rect.width,
+        maxX: monitor.x + monitor.width - visibleWidth,
+        minY: monitor.y + visibleHeight - rect.height,
+        maxY: monitor.y + monitor.height - visibleHeight,
+      };
     }
 
     _isOnScreen(x, y) {
-      let rect = this._getRectForCoords(x, y);
-      let monitorWorkArea = this._getWorkAreaForRect(rect);
-      return rect.x >= monitorWorkArea.x &&
-        rect.y >= monitorWorkArea.y &&
-        rect.x + rect.width <= monitorWorkArea.x + monitorWorkArea.width &&
-        rect.y + rect.height <= monitorWorkArea.y + monitorWorkArea.height;
+      const limits = this._positionLimits(x, y);
+      return x >= limits.minX && x <= limits.maxX && y >= limits.minY && y <= limits.maxY;
     }
 
     _keepOnScreen(x, y) {
-      let rect = this._getRectForCoords(x, y);
-      let monitorWorkArea = this._getWorkAreaForRect(rect);
-      let monitorRight = monitorWorkArea.x + monitorWorkArea.width;
-      let monitorBottom = monitorWorkArea.y + monitorWorkArea.height;
-      x = Math.min(Math.max(monitorWorkArea.x, x), monitorRight - rect.width);
-      y = Math.min(Math.max(monitorWorkArea.y, y), monitorBottom - rect.height);
-      return [x, y];
+      const limits = this._positionLimits(x, y);
+      return [
+        Math.min(Math.max(limits.minX, x), limits.maxX),
+        Math.min(Math.max(limits.minY, y), limits.maxY),
+      ];
     }
 
     _saveLocation(x, y) {
@@ -673,6 +678,19 @@ export const Visualizer = GObject.registerClass(
         else
             Main.layoutManager._backgroundGroup.add_child(this);
         this._refreshBlockedState();
+    }
+
+    vfunc_pick(pickContext) {
+      if (!this._drawOptions || !this.should_pick(pickContext))
+        return;
+      const box = this._pickBox;
+      hitBoxes(this.width, this.height, this._bars, this._drawOptions, (x1, y1, x2, y2) => {
+        box.x1 = x1;
+        box.y1 = y1;
+        box.x2 = x2;
+        box.y2 = y2;
+        this.pick_box(pickContext, box);
+      });
     }
 
     vfunc_button_press_event() {

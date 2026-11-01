@@ -17,6 +17,8 @@ function setPaint(cr, c1, c2, h) {
   }
 }
 
+const LINE_HIT_MIN_PX = 8;
+
 const level = (bars, i) => {
   const v = bars[Math.max(0, Math.min(bars.length - 1, i))];
   return v > 0 ? (v < 1 ? v : 1) : 0;
@@ -32,6 +34,14 @@ function barsPath(cr, bars, w, h) {
   }
 }
 
+function segmentControls(y, i, h) {
+  const prevY = y(i - 1), curY = y(i), nextY = y(i + 1), follY = y(i + 2);
+  return [
+    Math.max(0, Math.min(h, curY + (nextY - prevY) / 6)),
+    Math.max(0, Math.min(h, nextY - (follY - curY) / 6)),
+  ];
+}
+
 function curvePath(cr, bars, w, h, closeToBaseline) {
   const n = bars.length;
   const y = i => h * (1 - level(bars, i));
@@ -43,13 +53,12 @@ function curvePath(cr, bars, w, h, closeToBaseline) {
     const xStep = w / (n - 1);
     closeToBaseline ? cr.lineTo(0, y(0)) : cr.moveTo(0, y(0));
     for (let i = 0; i < n - 1; i++) {
-      const prevY = y(i - 1), curY = y(i), nextY = y(i + 1), follY = y(i + 2);
+      const nextY = y(i + 1);
+      const [c1Y, c2Y] = segmentControls(y, i, h);
       const curX = i * xStep, nextX = (i + 1) * xStep;
-      const c1Y = curY + (nextY - prevY) / 6;
-      const c2Y = nextY - (follY - curY) / 6;
       cr.curveTo(
-        curX + (nextX - curX) / 3, Math.max(0, Math.min(h, c1Y)),
-        curX + 2 * (nextX - curX) / 3, Math.max(0, Math.min(h, c2Y)),
+        curX + (nextX - curX) / 3, c1Y,
+        curX + 2 * (nextX - curX) / 3, c2Y,
         nextX, nextY
       );
     }
@@ -58,12 +67,77 @@ function curvePath(cr, bars, w, h, closeToBaseline) {
     cr.lineTo(w, h);
 }
 
+const isRotated = o => o.orientation === 'left' || o.orientation === 'right';
+
+function plotArea(width, height, n, o) {
+  const pad = o.glow ? o.lineWidth * 2 : 0;
+  const w = Math.max(1, (isRotated(o) ? height : width) - 2 * pad);
+  const h = Math.max(1, (isRotated(o) ? width : height) - pad);
+  const lineW = o.style === 'bars' ? Math.min(o.lineWidth, w / n) : o.lineWidth;
+  return {pad, w, h, lineW};
+}
+
+export function hitBoxes(width, height, bars, o, visit) {
+  const n = bars.length;
+  if (n === 0 || width <= 0 || height <= 0)
+    return;
+
+  const {pad, w, h, lineW} = plotArea(width, height, n, o);
+  const emit = (x1, y1, x2, y2) => {
+    x1 += pad;
+    x2 += pad;
+    y1 += pad;
+    y2 += pad;
+    let bx1, by1, bx2, by2;
+    switch (o.orientation) {
+      case 'top':
+        [bx1, by1, bx2, by2] = [x1, height - y2, x2, height - y1];
+        break;
+      case 'left':
+        [bx1, by1, bx2, by2] = [width - y2, x1, width - y1, x2];
+        break;
+      case 'right':
+        [bx1, by1, bx2, by2] = [y1, x1, y2, x2];
+        break;
+      default:
+        [bx1, by1, bx2, by2] = [x1, y1, x2, y2];
+        break;
+    }
+    bx1 = Math.max(0, bx1);
+    by1 = Math.max(0, by1);
+    bx2 = Math.min(width, bx2);
+    by2 = Math.min(height, by2);
+    if (bx1 < bx2 && by1 < by2)
+      visit(bx1, by1, bx2, by2);
+  };
+  const y = i => h * (1 - level(bars, i));
+
+  if (o.style === 'bars') {
+    const step = w / n;
+    for (let i = 0; i < n; i++)
+      emit(i * step, y(i) - lineW / 2, (i + 1) * step, h + lineW / 2);
+  } else if (n === 1) {
+    emit(0, y(0) - lineW / 2, w, o.style === 'area' ? h : y(0) + lineW / 2);
+  } else {
+    const xStep = w / (n - 1);
+    const thickness = Math.max(lineW, LINE_HIT_MIN_PX);
+    for (let i = 0; i < n - 1; i++) {
+      const [c1Y, c2Y] = segmentControls(y, i, h);
+      const top = Math.min(y(i), y(i + 1), c1Y, c2Y);
+      if (o.style === 'area') {
+        emit(i * xStep, top, (i + 1) * xStep, h);
+      } else {
+        const bottom = Math.max(y(i), y(i + 1), c1Y, c2Y);
+        emit(i * xStep - lineW / 2, top - thickness / 2, (i + 1) * xStep + lineW / 2, bottom + thickness / 2);
+      }
+    }
+  }
+}
+
 export function drawVisualizer(cr, width, height, bars, o) {
   const n = bars.length;
   cr.save();
   try {
-    let w = width;
-    let h = height;
     switch (o.orientation) {
       case 'top':
         cr.translate(0, height);
@@ -72,28 +146,21 @@ export function drawVisualizer(cr, width, height, bars, o) {
       case 'left':
         cr.translate(width, 0);
         cr.rotate(Math.PI / 2);
-        w = height;
-        h = width;
         break;
       case 'right':
         cr.rotate(-Math.PI / 2);
         cr.scale(-1, 1);
-        w = height;
-        h = width;
         break;
       default:
         break;
     }
-    if (n === 0 || w <= 0 || h <= 0)
+    if (n === 0 || width <= 0 || height <= 0)
       return;
 
-    const pad = o.glow ? o.lineWidth * 2 : 0;
+    const {pad, w, h, lineW} = plotArea(width, height, n, o);
     cr.translate(pad, pad);
-    w = Math.max(1, w - 2 * pad);
-    h = Math.max(1, h - pad);
 
     const area = o.style === 'area';
-    const lineW = o.style === 'bars' ? Math.min(o.lineWidth, w / n) : o.lineWidth;
     cr.setLineWidth(lineW);
     cr.setLineCap(Cairo.LineCap.ROUND);
     cr.setLineJoin(Cairo.LineJoin.ROUND);
